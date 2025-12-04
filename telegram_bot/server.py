@@ -10,5 +10,5 @@ def home():
 @app.post("/")
 async def webhook(request: Request):
     update = await request.json()
-    handle_update(update)
+    await handle_update(update)
     return {"ok": True}
