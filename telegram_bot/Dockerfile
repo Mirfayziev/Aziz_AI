@@ -2,9 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt /app/requirements.txt
+RUN pip install -r /app/requirements.txt
 
-COPY bot.py ./bot.py
+COPY . /app
 
-CMD ["uvicorn", "bot:app", "--host", "0.0.0.0", "--port", "9000"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8001"]
