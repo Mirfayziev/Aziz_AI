@@ -1,128 +1,130 @@
-import os
-from io import BytesIO
-
 import requests
-from fastapi import FastAPI, Request
-from openai import OpenAI
+import json
+import os
 
-API_URL = os.getenv("AZIZ_BACKEND_CHAT_URL", "http://backend:8000/api/chat/")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_API = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+BACKEND_URL = os.getenv("BACKEND_URL", "https://azizai-production.up.railway.app")  # backend URL
+TG_API = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
-client = OpenAI(api_key=OPENAI_API_KEY)
-app = FastAPI()
-
-
-def send_text(chat_id: int, text: str):
+# ========================
+# 🔹 Helper: matn yuborish
+# ========================
+def send_text(chat_id, text):
     requests.post(
-        f"{TELEGRAM_API}/sendMessage",
-        json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
-        timeout=10,
+        f"{TG_API}/sendMessage",
+        json={"chat_id": chat_id, "text": text}
     )
 
+# ========================
+# 🔹 Helper: ovoz yuborish
+# ========================
+def send_voice(chat_id, audio_bytes):
+    url = f"{TG_API}/sendVoice"
+    files = {"voice": ("reply.ogg", audio_bytes)}
+    data = {"chat_id": chat_id}
+    requests.post(url, data=data, files=files)
 
-def send_voice(chat_id: int, text: str):
-    if not OPENAI_API_KEY:
+# ========================
+# 🔹 Ovoz → matn Convert 
+# ========================
+def convert_voice_to_text(file_bytes):
+    resp = requests.post(
+        f"{BACKEND_URL}/api/transcribe",
+        files={"file": ("voice.ogg", file_bytes)},
+    )
+    if resp.ok:
+        return resp.json().get("text", "")
+    return "(ovozni o‘qishda xato)"
+
+# ========================
+# 🔹 ChatGPT javobi olish
+# ========================
+def get_ai_reply(text, user_id):
+    resp = requests.post(
+        f"{BACKEND_URL}/api/chat",
+        json={"user_id": user_id, "message": text},
+        timeout=20
+    )
+    if resp.ok:
+        return resp.json().get("reply", "🤖 Xabarni tushunmadim.")
+    return "⚠️ Server bilan bog‘lanishda xato!"
+
+# ========================
+# 🔹 Ovozli javob olish
+# ========================
+def ai_tts(text):
+    resp = requests.post(
+        f"{BACKEND_URL}/api/tts",
+        json={"text": text},
+        timeout=20
+    )
+    if resp.ok:
+        return resp.content
+    return None
+
+# ========================
+# 🔹 ASOSIY HANDLER
+# ========================
+def handle_update(update):
+    if "message" not in update:
         return
 
-    speech = client.audio.speech.create(
-        model="gpt-4o-mini-tts",
-        voice="alloy",
-        input=text,
-    )
-
-    audio_bytes = speech.to_bytes()
-
-    files = {"voice": ("reply.ogg", audio_bytes, "audio/ogg")}
-    requests.post(
-        f"{TELEGRAM_API}/sendVoice",
-        data={"chat_id": chat_id},
-        files=files,
-        timeout=20,
-    )
-
-
-def transcribe_voice(file_bytes: bytes) -> str:
-    audio_file = BytesIO(file_bytes)
-    audio_file.name = "voice.ogg"
-
-    resp = client.audio.transcriptions.create(
-        model="gpt-4o-transcribe",
-        file=audio_file,
-    )
-
-    return resp.text
-
-
-@app.post("/webhook")
-async def telegram_webhook(request: Request):
-    data = await request.json()
-
-    if "message" not in data:
-        return {"ok": True}
-
-    msg = data["message"]
+    msg = update["message"]
     chat_id = msg["chat"]["id"]
+    user_id = str(chat_id)
 
-    # VOICE → TEXT
-    if "voice" in msg and TELEGRAM_BOT_TOKEN and OPENAI_API_KEY:
-        try:
-            file_id = msg["voice"]["file_id"]
-
-            file_info = requests.get(
-                f"{TELEGRAM_API}/getFile",
-                params={"file_id": file_id},
-                timeout=10,
-            ).json()
-
-            file_path = file_info["result"]["file_path"]
-            file_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
-
-            file_bytes = requests.get(file_url, timeout=20).content
-            text = transcribe_voice(file_bytes)
-
-        except Exception:
-            text = "(ovozni o‘qishda xato)"
-    else:
-        text = msg.get("text") or ""
-
-    # /START — PREMIUM WELCOME
-    if text.lower().startswith("/start"):
+    # ====================
+    # 🔹 /start komandasi
+    # ====================
+    if "text" in msg and msg["text"].lower().startswith("/start"):
         welcome = (
-            "✨ *Assalomu alaykum, Aziz!* \n\n"
-            "Men — **Aziz AI**, sizning shaxsiy sun'iy intellekt yordamchingiz.\n"
-            "Men sizning odatlaringizni, uslublaringizni va ehtiyojlaringizni asta-sekin o‘rganaman.\n\n"
-            "💡 *Men nima qila olaman?*\n"
-            "— Savollaringizga inson darajasida javob beraman\n"
-            "— Kundalik rejalaringizni tuzishda yordam beraman\n"
-            "— Fikringizni tartibga solaman\n"
-            "— Ovoz orqali ham muloqot qilaman\n\n"
-            "🧠 *Aziz, endi men doimo yoningizdaman.*\n"
-            "Xohlagan savolingizni yozing yoki ovoz yuboring 👇"
+            "🤖 *Assalomu alaykum, Aziz!*\n\n"
+            "Men – **Aziz AI**, sizning shaxsiy sun’iy intellekt yordamchingiz.\n"
+            "Siz haqingizda o‘rganaman, odatlaringizni eslab boraman va vaqt o‘tishi bilan yanada aqlli bo‘laman.\n\n"
+            "✨ *Menga nimalar buyurishingiz mumkin?*\n"
+            "• Savollarga insondek javob berish\n"
+            "• Reja, kun tartibi, vazifalar tuzib berish\n"
+            "• O‘zingiz haqingizda ma’lumotni eslab qolish\n"
+            "• Ovoz orqali suhbatlashish\n\n"
+            "Endi men doimo yoningizdaman, Aziz. 😌\n"
+            "Xohlagan narsani yozing yoki ovoz yuboring 🎤"
         )
-
         send_text(chat_id, welcome)
-        return {"ok": True}
+        return
 
-    # BACKEND CHAT
-    try:
-        r = requests.post(API_URL, json={"chat_id": str(chat_id), "message": text}, timeout=60)
+    # ====================
+    # 🔹 Agar ovoz yuborsa
+    # ====================
+    if "voice" in msg:
+        file_id = msg["voice"]["file_id"]
 
-        if r.status_code == 200:
-            reply = r.json().get("reply", "Javobni o‘qib bo‘lmadi.")
-        else:
-            reply = f"Backend xato: {r.text}"
+        # file path olish
+        file_data = requests.get(f"{TG_API}/getFile?file_id={file_id}").json()
+        file_path = file_data["result"]["file_path"]
+        file_url = f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/{file_path}"
 
-    except Exception as e:
-        reply = f"Backendga ulanishda xato: {e}"
+        file_bytes = requests.get(file_url).content
+        text = convert_voice_to_text(file_bytes)
 
+    # ====================
+    # 🔹 Agar matn yuborsa
+    # ====================
+    elif "text" in msg:
+        text = msg["text"]
+
+    else:
+        send_text(chat_id, "⚠️ Men faqat matn yoki ovoz qabul qila olaman.")
+        return
+
+    # ====================
+    # 🔹 AI javobi
+    # ====================
+    reply = get_ai_reply(text, user_id)
+
+    # Matn yuboramiz
     send_text(chat_id, reply)
 
-    # OPTIONAL VOICE REPLY
-    try:
-        send_voice(chat_id, reply)
-    except Exception:
-        pass
-
-    return {"ok": True}
+    # Ovozni ham qaytaramiz
+    audio = ai_tts(reply)
+    if audio:
+        send_voice(chat_id, audio)
