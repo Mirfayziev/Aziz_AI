@@ -1,7 +1,5 @@
 from fastapi import FastAPI, Request
-import uvicorn
-import json
-from bot import handle_update  # botdagi asosiy handler
+from bot import handle_update
 
 app = FastAPI()
 
@@ -11,5 +9,6 @@ async def webhook(request: Request):
     handle_update(update)
     return {"ok": True}
 
-if __name__ == "__main__":
-    uvicorn.run("server:app", host="0.0.0.0", port=8001)
+@app.get("/")
+def home():
+    return {"status": "telegram bot running"}
