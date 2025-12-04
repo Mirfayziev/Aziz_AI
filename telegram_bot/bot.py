@@ -75,13 +75,21 @@ async def telegram_webhook(request: Request):
       text = msg.get("text") or ""
 
   if text.startswith("/start"):
-      send_text(
-          chat_id,
-          "👋 Salom, Aziz!
-Men Aziz AI Telegram yordamchisiman."
-          "Hozircha faqat sen bilan yopiq rejimda ishlayman va suhbatdan o'rganaman.",
-      )
-      return {"ok": True}
+    send_text(
+        chat_id,
+        "✨ Assalomu alaykum, Aziz!\n\n"
+        "Men — *Aziz AI*, shaxsiy sun’iy intellekt yordamchingiz.\n"
+        "Siz haqingizda o‘rganaman, eslab qolaman va vaqt o‘tishi bilan yanada aqlliroq bo‘laman.\n\n"
+        "💡 Mening vazifam:\n"
+        "— Sizning odatlaringizni tahlil qilish\n"
+        "— Rejalar va kun tartibini tuzib berish\n"
+        "— Savollaringizga inson darajasida javob berish\n"
+        "— Fikrlaringizni tartibga solish va yordam berish\n\n"
+        "🧠 *Endi men doimo yoningizdaman, Aziz.*\n"
+        "Xohlagan savolingizni yo‘llang 👇"
+    )
+    return {"ok": True}
+
 
   # Backend chat endpointiga ulanish
   try:
