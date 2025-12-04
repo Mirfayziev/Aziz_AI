@@ -83,29 +83,29 @@ async def telegram_webhook(request: Request):
             text = transcribe_voice(file_bytes)
 
         except Exception:
-            text = "(ovozni o'qishda xato)"
+            text = "(ovozni o‘qishda xato)"
     else:
         text = msg.get("text") or ""
 
     # /START — PREMIUM WELCOME
     if text.lower().startswith("/start"):
         welcome = (
-            "✨ *Assalomu alaykum, Aziz!*\n\n"
+            "✨ *Assalomu alaykum, Aziz!* \n\n"
             "Men — **Aziz AI**, sizning shaxsiy sun'iy intellekt yordamchingiz.\n"
             "Men sizning odatlaringizni, uslublaringizni va ehtiyojlaringizni asta-sekin o‘rganaman.\n\n"
-            "💡 Men nima qila olaman?\n"
-            "— Savollaringizga inson darajasida javob berish\n"
-            "— Kun tartibi va rejalarni yaratish\n"
-            "— Fikringizni tartibga solish\n"
-            "— Ovoz bilan suhbatlashish\n\n"
-            "🧠 *Aziz, men endi doimo yoningizdan joy oldim.*\n"
+            "💡 *Men nima qila olaman?*\n"
+            "— Savollaringizga inson darajasida javob beraman\n"
+            "— Kundalik rejalaringizni tuzishda yordam beraman\n"
+            "— Fikringizni tartibga solaman\n"
+            "— Ovoz orqali ham muloqot qilaman\n\n"
+            "🧠 *Aziz, endi men doimo yoningizdaman.*\n"
             "Xohlagan savolingizni yozing yoki ovoz yuboring 👇"
         )
 
         send_text(chat_id, welcome)
         return {"ok": True}
 
-    # BACKEND → CHAT RESPONSE
+    # BACKEND CHAT
     try:
         r = requests.post(API_URL, json={"chat_id": str(chat_id), "message": text}, timeout=60)
 
@@ -117,10 +117,9 @@ async def telegram_webhook(request: Request):
     except Exception as e:
         reply = f"Backendga ulanishda xato: {e}"
 
-    # SEND TEXT
     send_text(chat_id, reply)
 
-    # OPTIONAL: SEND VOICE
+    # OPTIONAL VOICE REPLY
     try:
         send_voice(chat_id, reply)
     except Exception:
