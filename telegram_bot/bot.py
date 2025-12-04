@@ -1,28 +1,45 @@
 import os
 import requests
-from fastapi import BackgroundTasks  # agar kerak bo'lsa
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TG_API = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
+TELEGRAM_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+CHAT_URL = os.environ["AZIZ_BACKEND_CHAT_URL"]
+AUDIO_URL = os.environ["AZIZ_BACKEND_AUDIO_URL"]
 
-BACKEND_URL = os.getenv("AZIZ_BACKEND_CHAT_URL", "https://azizai-production.up.railway.app")
+BASE = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
 
-def send_text(chat_id: int, text: str):
-    requests.post(f"{TG_API}/sendMessage", json={"chat_id": chat_id, "text": text})
+def send_text(chat_id, text):
+    url = f"{BASE}/sendMessage"
+    requests.post(url, json={"chat_id": chat_id, "text": text})
 
-def handle_update(update: dict):
+def handle_update(update):
     if "message" not in update:
         return
+
     msg = update["message"]
     chat_id = msg["chat"]["id"]
-    text = msg.get("text", "")
-    if text.lower().startswith("/start"):
-        send_text(chat_id, "👋 Assalomu alaykum, Aziz! ✨")
+
+    # START komandasi
+    if "text" in msg and msg["text"].lower().startswith("/start"):
+        welcome = (
+            "👋 *Assalomu alaykum, Aziz!* \n\n"
+            "Men — **Aziz AI**, sizning shaxsiy sun'iy intellekt yordamchingiz.\n"
+            "Savollaringizni yozing yoki ovoz yuboring 🎤"
+        )
+        send_text(chat_id, welcome)
         return
-    # boshqa xabarlar: backend ga jo'nat
-    resp = requests.post(f"{BACKEND_URL}/api/chat", json={"chat_id": chat_id, "message": text})
-    if resp.ok:
-        reply = resp.json().get("reply", "")
-    else:
-        reply = "Server bilan bog'lanishda xato"
-    send_text(chat_id, reply)
+
+    # Matn xabar → BACKEND CHAT API
+    if "text" in msg:
+        text = msg["text"]
+        response = requests.post(CHAT_URL, json={"text": text})
+        reply = response.json().get("reply", "Xatolik yuz berdi")
+        send_text(chat_id, reply)
+        return
+
+    # Ovoz xabar → BACKEND AUDIO API
+    if "voice" in msg:
+        file_id = msg["voice"]["file_id"]
+        response = requests.post(AUDIO_URL, json={"file_id": file_id})
+        reply = response.json().get("text", "Xatolik yuz berdi")
+        send_text(chat_id, reply)
+        return
