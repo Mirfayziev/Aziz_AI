@@ -78,7 +78,7 @@ async def telegram_webhook(request: Request):
       send_text(
           chat_id,
           "👋 Salom, Aziz!
-Men Aziz AI Telegram yordamchisiman. "
+Men Aziz AI Telegram yordamchisiman."
           "Hozircha faqat sen bilan yopiq rejimda ishlayman va suhbatdan o'rganaman.",
       )
       return {"ok": True}
