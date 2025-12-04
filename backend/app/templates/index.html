@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <title>Aziz AI Board</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Aziz AI – Shaxsiy Kanban Chat</h1>
+      <p>Chat, kunlik reja, xotira va xulosalar bitta joyda.</p>
+    </header>
+    <main>
+      <section class="column">
+        <h2>💬 Chat</h2>
+        <div id="chat-log" class="panel"></div>
+        <div class="chat-input">
+          <input id="chat-text" type="text" placeholder="Aziz, yoz..." />
+          <button onclick="sendMessage()">Yuborish</button>
+        </div>
+      </section>
+      <section class="column">
+        <h2>📅 Bugungi reja</h2>
+        <button onclick="loadPlan()">Reja tuzish</button>
+        <div id="plan" class="panel"></div>
+      </section>
+      <section class="column">
+        <h2>🧠 Xotira & Xulosa</h2>
+        <button onclick="loadSummary()">Kundalik xulosa</button>
+        <div id="summary" class="panel"></div>
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
