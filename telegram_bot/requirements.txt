@@ -1,6 +1,4 @@
-fastapi
-uvicorn
-requests
-openai
-httpx
-python-dotenv
+flask==3.0.0
+requests==2.32.3
+python-dotenv==1.0.1
+openai>=1.3.0
