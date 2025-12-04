@@ -1,14 +1,19 @@
-from fastapi import FastAPI, Request
+import os
+from flask import Flask, request, jsonify
 from bot import handle_update
 
-app = FastAPI()
+app = Flask(__name__)
 
-@app.get("/")
+@app.route("/", methods=["GET"])
 def home():
-    return {"status": "telegram bot running"}
+    return "Telegram bot running", 200
 
-@app.post("/")
-async def webhook(request: Request):
-    update = await request.json()
-    await handle_update(update)
-    return {"ok": True}
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    update = request.get_json()
+    handle_update(update)
+    return jsonify({"ok": True}), 200
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host="0.0.0.0", port=port)
