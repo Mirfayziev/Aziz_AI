@@ -5,10 +5,10 @@ import base64
 from aiogram import Bot, Dispatcher, types
 
 # ====== ENV ======
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-BACKEND_CHAT_URL = os.getenv("BACKEND_CHAT_URL")
-BACKEND_AUDIO_URL = os.getenv("BACKEND_AUDIO_URL")
-BACKEND_PLANNER_URL = os.getenv("BACKEND_PLANNER_URL")
+BACKEND_CHAT_URL = os.getenv("BACKEND_CHAT_URL", "").strip()
+BACKEND_AUDIO_URL = os.getenv("BACKEND_AUDIO_URL", "").strip()
+BACKEND_PLANNER_URL = os.getenv("BACKEND_PLANNER_URL", "").strip()
+
 
 bot = Bot(TOKEN)
 dp = Dispatcher()
