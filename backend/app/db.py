@@ -4,16 +4,21 @@ from .config import get_settings
 
 settings = get_settings()
 
+# Railway postgres uchun SSL qo‘shamiz
+connect_args = {}
+if settings.DATABASE_URL.startswith("postgres"):
+    connect_args = {"sslmode": "require"}
+
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {},
+    connect_args=connect_args,
 )
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
 def get_db():
-    from sqlalchemy.orm import Session
     db = SessionLocal()
     try:
         yield db
