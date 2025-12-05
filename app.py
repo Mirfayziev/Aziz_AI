@@ -7,7 +7,7 @@ from core.database import create_db_and_tables
 
 # ROUTERS (13 modul uchun)
 from core.memory.router import router as memory_router
-from core.personality.router import router as personality_router
+from core.personality.model import PersonalityProfile
 from core.profiling.router import router as profiling_router
 from core.chat.router import router as chat_router
 from core.context.router import router as context_router
