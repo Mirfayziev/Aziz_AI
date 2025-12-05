@@ -10,7 +10,7 @@ from core.agent import router as agent_router
 from core.office import router as office_router
 from core.audio import router as audio_router
 from core.memory.router import router as memory_router
-
+from core.personality.router import router as personality_router
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
@@ -39,7 +39,8 @@ def create_app() -> FastAPI:
     app.include_router(office_router, prefix=api_prefix)
     app.include_router(audio_router, prefix=api_prefix)
     app.include_router(memory_router)
-
+    app.include_router(personality_router)
+   
     @app.get("/")   # 👈 bitta qatorda bo‘lishi shart!
     async def root():
         return {
