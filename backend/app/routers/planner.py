@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from ..db import get_db
+from app.db import get_db
 from ..schemas import PlannerRequest, PlannerResponse
 from ..services.planner_service import create_plan
 
