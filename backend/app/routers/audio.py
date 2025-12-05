@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, UploadFile, Form
 from sqlalchemy.orm import Session
 
-from ..db import get_db
+from app.db import get_db
 from ..services.audio_service import process_audio_message
 
 router = APIRouter()
