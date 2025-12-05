@@ -6,7 +6,6 @@ client = OpenAI()
 
 
 def process_audio_message(db, external_id: str, audio_base64: str, model_tier: str):
-
     # 1) Base64 → Bytes
     audio_bytes = base64.b64decode(audio_base64)
 
@@ -28,3 +27,7 @@ def process_audio_message(db, external_id: str, audio_base64: str, model_tier: s
 
     return text, reply
 
+
+# ALIAS (router bilan moslik uchun)
+def process_audio(db, external_id: str, audio_base64: str, model_tier: str):
+    return process_audio_message(db, external_id, audio_base64, model_tier)
