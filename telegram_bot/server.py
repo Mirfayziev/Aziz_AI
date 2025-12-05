@@ -1,47 +1,46 @@
-# server.py
 import os
+import uvicorn
 from fastapi import FastAPI, Request
-from aiogram import Bot, Dispatcher, types
-from aiogram.enums.parse_mode import ParseMode
+from bot import bot, process_update  # bot.py dagi obyektlar
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-WEBHOOK_URL = f"https://focused-benevolence-production.up.railway.app/webhook"
+app = FastAPI(title="Aziz AI Telegram Bot")
 
-bot = Bot(token=TELEGRAM_TOKEN, parse_mode=ParseMode.HTML)
-dp = Dispatcher()
+# Telegram webhook yo'li
+WEBHOOK_PATH = "/webhook"
 
-app = FastAPI(title="Telegram Bot Webhook")
-
-# --- BOT HANDLERS ---
-@dp.message()
-async def handle_message(message: types.Message):
-    text = message.text or ""
-    await message.answer(f"AI javobi test: {text}")
+# Railway domeningga mos URL
+DEFAULT_WEBHOOK_BASE = "https://focused-benevolence-production.up.railway.app"
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", DEFAULT_WEBHOOK_BASE + WEBHOOK_PATH)
 
 
-# --- LIFESPAN (startup + shutdown) ---
-from contextlib import asynccontextmanager
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("Setting webhook...")
+@app.on_event("startup")
+async def on_startup():
+    # Bot ishga tushganda webhook'ni o'rnatamiz
     await bot.set_webhook(WEBHOOK_URL)
-    yield
-    print("Deleting webhook...")
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    # Servis to'xtaganda webhookni o'chiramiz
     await bot.delete_webhook()
 
-app.router.lifespan_context = lifespan
 
-
-# --- TELEGRAM WEBHOOK ROUTE ---
-@app.post("/webhook")
+@app.post(WEBHOOK_PATH)
 async def telegram_webhook(request: Request):
-    data = await request.json()
-    update = types.Update.construct(**data)
-    await dp.feed_update(bot, update)
-    return {"status": "ok"}
+    """
+    Telegramdan kelgan barcha update shu endpointga keladi.
+    """
+    update_json = await request.json()
+    await process_update(update_json)
+    return {"ok": True}
 
 
 @app.get("/")
-async def home():
-    return {"message": "Telegram bot is running ✔️"}
+async def healthcheck():
+    return {"status": "ok", "service": "telegram-bot"}
+
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", "8000"))
+    # Bu yerda uvicorn'ni o'zimiz ishga tushiramiz – $PORT bilan muammo bo‘lmaydi
+    uvicorn.run("server:app", host="0.0.0.0", port=port)
