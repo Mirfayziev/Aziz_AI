@@ -6,7 +6,8 @@ from fastapi import Request
 
 from app.core.config import settings
 from app.database import Base, engine
-from app.routers import auth, users, chat, memory, planner, summary
+from app.routers import auth, users, chat, memory, planner, summary, audio
+
 
 Base.metadata.create_all(bind=engine)
 
