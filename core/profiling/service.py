@@ -1,19 +1,12 @@
-def update_profile(db, profile: UserProfile, new_data: dict):
-    for key, value in new_data.items():
-        old = profile.stats.get(key)
-        profile.stats[key] = value if old is None else value
+from sqlalchemy.orm import Session
+from core.profiling.model import ProfilingEvent
 
+def log_event(db: Session, event_type: str, metadata: dict):
+    event = ProfilingEvent(event_type=event_type, metadata=metadata)
+    db.add(event)
     db.commit()
-    return profile
+    db.refresh(event)
+    return event
 
-
-def create_profile(db, identity):
-    obj = UserProfile(
-        identity=identity,
-        behavior={},
-        preferences={},
-        stats={"messages": 0}
-    )
-    db.add(obj)
-    db.commit()
-    return obj
+def get_events(db: Session):
+    return db.query(ProfilingEvent).all()
