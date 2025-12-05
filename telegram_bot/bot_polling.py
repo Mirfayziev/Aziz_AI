@@ -1,15 +1,27 @@
-from aiogram import Bot, Dispatcher, executor, types
-from handlers import handle_text
-from config import TELEGRAM_BOT_TOKEN
+# telegram_bot/bot_polling.py
 
-bot = Bot(token=TELEGRAM_BOT_TOKEN)
-dp = Dispatcher(bot)
+import os
+import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.enums.parse_mode import ParseMode
 
-# TEXT handler
-@dp.message_handler(content_types=['text'])
-async def text_handler(message: types.Message):
-    await handle_text(message)
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+bot = Bot(token=TELEGRAM_TOKEN, parse_mode=ParseMode.HTML)
+dp = Dispatcher()
+
+
+@dp.message()
+async def handle_message(message: types.Message):
+    text = message.text or ""
+    # Hozircha oddiy test javob
+    await message.answer(f"AI javobi test (polling): {text}")
+
+
+async def main():
+    print("🤖 Telegram polling bot started...")
+    await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
-    print("🤖 Telegram polling bot started...")
-    executor.start_polling(dp, skip_updates=True)
+    asyncio.run(main())
