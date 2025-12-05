@@ -1,59 +1,68 @@
 import os
-import httpx
+import requests
+from flask import Flask, request
+from dotenv import load_dotenv
+
+load_dotenv()
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_URL = os.getenv("AZIZ_BACKEND_CHAT_URL")
 
-BOT_API = f"https://api.telegram.org/bot{TOKEN}"
+app = Flask(__name__)
 
-
-async def send_message(chat_id: int, text: str):
-    """Telegramga matn yuborish."""
+# Telegramga xabar yuborish funksiyasi
+def send_message(chat_id, text):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
+    requests.post(url, json=payload)
 
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        try:
-            await client.post(f"{BOT_API}/sendMessage", json=payload)
-        except Exception as e:
-            print("Telegram send error:", e)
+# --- Asosiy webhook ---
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.json
 
+    if "message" not in data:
+        return {"ok": True}
 
-async def process_update(update):
-    """Telegram update-ni qayta ishlash."""
-    
-    # message yo'q bo'lsa chiqib ketamiz
-    message = update.get("message")
-    if not message:
-        return
+    msg = data["message"]
+    chat_id = msg["chat"]["id"]
+    text = msg.get("text", "")
 
-    chat_id = message["chat"]["id"]
-    user_text = message.get("text", "")
-
-    # /start komandasi
-    if user_text.lower() == "/start":
+    # Faqat /start komandasi uchun chiroyli welcome
+    if text.lower().startswith("/start"):
         welcome = (
-            "👋 *Salom!* Men — *Aziz AI*, sizning shaxsiy yordamchingiz.\n\n"
-            "✨ Savollar, rejalashtirish, maslahat — hammasida yordam beraman.\n"
-            "✍️ Istalgan savolni yozavering."
+            "✨ *Assalomu alaykum, Aziz!* ✨\n\n"
+            "Men — **Aziz AI**, sizning shaxsiy sun’iy intellekt yordamchingizman.\n"
+            "Maqsadlar, rejalaringiz, kundalik vazifalaringiz — barchasida yoningizdaman.\n\n"
+            "Savolingizni yuboring 👇"
         )
-        await send_message(chat_id, welcome)
-        return
+        send_message(chat_id, welcome)
+        return {"ok": True}
 
-    # ====== BACKENDGA AI SO‘ROV ======
+    # --- Oddiy matn → Backendga yuboriladi ---
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            response = await client.post(
-                CHAT_URL,
-                json={"message": user_text},
-            )
+        backend_res = requests.post(
+            CHAT_URL,
+            json={"message": text, "user_id": str(chat_id)},
+            timeout=20
+        )
 
-        data = response.json()
-
-        # Backendda AI javobi har doim "response" maydonida
-        ai_answer = data.get("response") or data.get("reply") or "⚠️ AI javobi qaytmadi!"
+        if backend_res.status_code == 200:
+            answer = backend_res.json().get("response", "❗ AI javob bera olmadi")
+        else:
+            answer = f"Backend xato: {backend_res.status_code}"
 
     except Exception as e:
-        ai_answer = f"⚠️ Xatolik: {e}"
+        answer = f"❗ Server bilan ulanishda muammo: {str(e)}"
 
-    # ====== TELEGRAMGA AI JAVOBINI YUBORAMIZ ======
-    await send_message(chat_id, ai_answer)
+    send_message(chat_id, answer)
+
+    return {"ok": True}
+
+# Flask server
+@app.route("/", methods=["GET"])
+def home():
+    return "Bot ishlayapti!", 200
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
