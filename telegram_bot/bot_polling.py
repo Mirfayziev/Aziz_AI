@@ -1,5 +1,3 @@
-# telegram_bot/bot_polling.py
-
 import os
 import asyncio
 from aiogram import Bot, Dispatcher, types
