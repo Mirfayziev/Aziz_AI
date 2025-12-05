@@ -12,7 +12,7 @@ class PlanRequest(BaseModel):
 class PlanResponse(BaseModel):
     result: str
 
-@router.post("", response_model=PlanResponse)
+@router.post("")   # <-- MUHIM! AYNAN POST BO‘LSIN!
 def planner(req: PlanRequest):
     try:
         result = generate_plan(req.query, req.model_tier)
