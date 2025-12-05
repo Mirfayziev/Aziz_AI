@@ -38,7 +38,7 @@ def create_app() -> FastAPI:
     app.include_router(office_router, prefix=api_prefix)
     app.include_router(audio_router, prefix=api_prefix)
 
-    @app.get("/")
+    @app.get("/")   # 👈 bitta qatorda bo‘lishi shart!
     async def root():
         return {
             "message": "Aziz AI Super Digital Clone - 6 yadroli backend ishlayapti ✔️",
@@ -52,6 +52,7 @@ def create_app() -> FastAPI:
             ],
             "api_prefix": api_prefix
         }
+
 
     return app
 
