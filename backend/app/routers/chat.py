@@ -8,7 +8,11 @@ class ChatRequest(BaseModel):
     user_id: int
     message: str
 
-@router.post("/")
-def chat_endpoint(payload: ChatRequest):
-    reply = create_chat_reply(payload.user_id, payload.message)
+# BU joyni to‘g‘irladik — endpoint endi POST /api/chat
+@router.post("")
+async def chat_reply(payload: ChatRequest):
+    reply = await create_chat_reply(
+        user_id=payload.user_id,
+        message=payload.message
+    )
     return {"reply": reply}
