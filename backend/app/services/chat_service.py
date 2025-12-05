@@ -1,18 +1,58 @@
-from app.services.memory_service import get_memory_context, save_memory
-from app.services.models import ChatMessage
-from db import SessionLocal
+from sqlalchemy.orm import Session, sessionmaker
+from app.db import engine
+from app.models import Message
+from app.services.memory_service import (
+    get_or_create_user,
+    save_memory,
+    search_memory
+)
+from openai import OpenAI
 
-def create_chat_reply(user_id: int, message: str):
+client = OpenAI()
+SessionLocal = sessionmaker(bind=engine)
+
+
+def create_chat_reply(user_external_id: str, text: str):
     db = SessionLocal()
 
-    # Xotira konteksti olish
-    memory = get_memory_context(user_id=user_id, db=db)
+    # 1) Foydalanuvchi olish/yaratish
+    user = get_or_create_user(db, external_id=user_external_id)
 
-    # OpenAI chaqirish
-    reply = call_openai_with_memory(message, memory)
+    # 2) Xabarni saqlash
+    msg = Message(user_id=user.id, role="user", content=text)
+    db.add(msg)
+    db.commit()
 
-    # Xotirani saqlash
-    save_memory(user_id=user_id, message=message, reply=reply, db=db)
+    # 3) Xotiradan mos ma’lumotlarni olish
+    memories = search_memory(db, user.id, text)
+    memory_text = "\n".join([m.content for m in memories])
+
+    # 4) Xotiraga yangi narsani qo‘shish
+    if len(text.split()) > 3:
+        save_memory(db, user.id, text, tags=["conversation"])
+
+    # 5) AI modeldan javob
+    prompt = f"""
+User message:
+{text}
+
+Relevant memories:
+{memory_text}
+
+Respond naturally as Aziz AI assistant.
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    reply_text = response.choices[0].message["content"]
+
+    # 6) Javobni tarixga yozish
+    bot_msg = Message(user_id=user.id, role="assistant", content=reply_text)
+    db.add(bot_msg)
+    db.commit()
 
     db.close()
-    return reply
+    return reply_text
