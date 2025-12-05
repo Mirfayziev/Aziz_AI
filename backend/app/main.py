@@ -23,7 +23,6 @@ app.include_router(chat.router, prefix="/api/chat")
 app.include_router(audio.router, prefix="/api/audio")
 app.include_router(planner.router, prefix="/api/planner")
 app.include_router(profile.router, prefix="/api/profile")
-app.include_router(planner.router, prefix="/api/planner")
 
 # HEALTH CHECK
 @app.get("/")
