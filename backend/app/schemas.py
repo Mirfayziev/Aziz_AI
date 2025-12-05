@@ -39,6 +39,12 @@ class PlanOut(BaseModel):
     class Config:
         from_attributes = True
 
-class AudioChatResponse(BaseModel):
+class AudioRequest(BaseModel):
+    user_external_id: str
+    audio_base64: str
+    model_tier: str = "basic"
+
+class AudioResponse(BaseModel):
     text: str
     reply: str
+
