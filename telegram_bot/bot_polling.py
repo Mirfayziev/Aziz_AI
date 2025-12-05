@@ -7,6 +7,7 @@ from aiogram import Bot, Dispatcher, types
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 BACKEND_CHAT_URL = os.getenv("BACKEND_CHAT_URL")
 BACKEND_AUDIO_URL = os.getenv("BACKEND_AUDIO_URL")
+BACKEND_PLANNER_URL = os.getenv("BACKEND_PLANNER_URL")
 
 bot = Bot(TOKEN)
 dp = Dispatcher()
