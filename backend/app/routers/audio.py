@@ -1,33 +1,26 @@
-import base64
-from openai import OpenAI
-from .chat_service import create_chat_reply
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
-client = OpenAI()
+from app.db import get_db
+from app.schemas import AudioRequest, AudioResponse
+from app.services.audio_service import process_audio_message
 
-
-def process_audio_message(db, external_id: str, audio_base64: str, model_tier: str):
-    # 1) Base64 → Bytes
-    audio_bytes = base64.b64decode(audio_base64)
-
-    # 2) Speech-to-Text (Whisper)
-    transcription = client.audio.transcriptions.create(
-        model="whisper-1",
-        file=("audio.ogg", audio_bytes)
-    )
-
-    text = transcription.text
-
-    # 3) AI javobi yaratish (chat model)
-    reply = create_chat_reply(
-        db=db,
-        external_id=external_id,
-        message=text,
-        model_tier=model_tier
-    )
-
-    return text, reply
+router = APIRouter(tags=["audio"])
 
 
-# ALIAS (router bilan moslik uchun)
-def process_audio(db, external_id: str, audio_base64: str, model_tier: str):
-    return process_audio_message(db, external_id, audio_base64, model_tier)
+@router.post("", response_model=AudioResponse)
+def handle_audio(req: AudioRequest, db: Session = Depends(get_db)):
+    """
+    Telegram botdan kelgan audio_base64 ni qabul qiladi,
+    Whisper orqali matnga aylantiradi va chat modeli orqali javob qaytaradi.
+    """
+    try:
+        text, reply = process_audio_message(
+            db=db,
+            external_id=req.user_external_id,
+            audio_base64=req.audio_base64,
+            model_tier=req.model_tier,
+        )
+        return AudioResponse(text=text, reply=reply)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
