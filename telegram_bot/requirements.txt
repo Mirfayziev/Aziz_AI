@@ -1,8 +1,6 @@
+aiogram==3.4.1
 fastapi
 uvicorn
-pydantic
-python-multipart
-openai
+python-dotenv
 httpx
-flask
 requests
