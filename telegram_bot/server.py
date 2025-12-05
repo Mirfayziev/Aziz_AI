@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI, Request
 from dotenv import load_dotenv
-from . import bot as tg_bot   # ← ENDILIKDA TO‘G‘RI ISHLAYDI
+from telegram_bot import bot as tg_bot
 
 load_dotenv()
 
