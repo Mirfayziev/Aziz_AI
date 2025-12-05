@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..schemas import AudioRequest, AudioResponse
-from app.services.audio_service import process_audio
+from app.services.audio_service import process_audio_message
 
 router = APIRouter(tags=["audio"])
 
