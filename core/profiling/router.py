@@ -1,18 +1,12 @@
-from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from core.database import get_db
-from core.profiling.service import log_event, get_events
+from fastapi import APIRouter
+from core.profiling.service import get_events, add_event
 
-router = APIRouter(prefix="/api/profiling", tags=["Profiling"])
+profiling_router = APIRouter(prefix="/api/profiling", tags=["Profiling"])
 
-@router.get("/")
-def fetch_events(db: Session = Depends(get_db)):
-    return get_events(db)
+@profiling_router.get("/")
+def list_events():
+    return get_events()
 
-@router.post("/")
-def create_event(data: dict, db: Session = Depends(get_db)):
-    return log_event(
-        db,
-        event_type=data.get("event_type", "unknown"),
-        metadata=data.get("metadata", {})
-    )
+@profiling_router.post("/")
+def create_event(data: dict):
+    return add_event(data)
