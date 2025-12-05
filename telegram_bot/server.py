@@ -24,4 +24,24 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("Setting
+    print("Setting webhook...")
+    await bot.set_webhook(WEBHOOK_URL)
+    yield
+    print("Deleting webhook...")
+    await bot.delete_webhook()
+
+app.router.lifespan_context = lifespan
+
+
+# --- TELEGRAM WEBHOOK ROUTE ---
+@app.post("/webhook")
+async def telegram_webhook(request: Request):
+    data = await request.json()
+    update = types.Update.construct(**data)
+    await dp.feed_update(bot, update)
+    return {"status": "ok"}
+
+
+@app.get("/")
+async def home():
+    return {"message": "Telegram bot is running ✔️"}
