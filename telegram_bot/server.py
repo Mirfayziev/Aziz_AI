@@ -1,34 +1,27 @@
+# server.py
 import os
 from fastapi import FastAPI, Request
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import Update
-import asyncio
+from aiogram.enums.parse_mode import ParseMode
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_URL = f"https://focused-benevolence-production.up.railway.app/webhook"
 
-bot = Bot(token=TOKEN)
+bot = Bot(token=TELEGRAM_TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher()
 
-app = FastAPI()
+app = FastAPI(title="Telegram Bot Webhook")
 
-
-# Webhook handler
-@app.post("/webhook")
-async def webhook(request: Request):
-    json_data = await request.json()
-    update = Update(**json_data)
-    await dp.feed_update(bot, update)
-    return {"ok": True}
-
-
-# Bot start command
+# --- BOT HANDLERS ---
 @dp.message()
-async def all_messages(message: types.Message):
-    await message.answer("AI javobi kelayapti... 🔄")
+async def handle_message(message: types.Message):
+    text = message.text or ""
+    await message.answer(f"AI javobi test: {text}")
 
 
-@app.on_event("startup")
-async def on_startup():
-    webhook_url = os.getenv("WEBHOOK_URL")
-    await bot.set_webhook(webhook_url)
-    print("Webhook set:", webhook_url)
+# --- LIFESPAN (startup + shutdown) ---
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Setting
