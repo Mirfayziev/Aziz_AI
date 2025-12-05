@@ -7,4 +7,4 @@ class ProfilingEvent(Base):
 
     id = Column(String, primary_key=True, default=gen_id)
     event = Column(String)
-    metadata = Column(JSON)
+    event_data = Column(JSON)   # metadata O‘RNIGA event_data
