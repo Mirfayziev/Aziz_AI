@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 from core.database import create_db_and_tables
 
+
 # ROUTERS (13 modul uchun)
 from core.memory.router import router as memory_router
 from core.personality.router import router as personality_router
