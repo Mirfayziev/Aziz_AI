@@ -9,19 +9,11 @@ if ENV_PATH.exists():
     load_dotenv(ENV_PATH)
 
 class Settings:
-    PROJECT_NAME: str = "Aziz AI Super Digital Clone – Backend"
+    PROJECT_NAME: str = "Aziz AI — Super Digital Clone"
+    API_PREFIX: str = "/api"
 
-    API_PREFIX: str = ""   # Routerlar prefixi
-
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
-
-    # Eski kodlar bilan moslashuv
-    DB_URL: str = DATABASE_URL
-
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    DEBUG: bool = os.getenv("DEBUG", "true").lower() == "true"
-
-    PROJECT_DIR: str = str(BASE_DIR)
-    URL: str = os.getenv("GITPAGELINK", "")
+    DB_URL: str = os.getenv("DATABASE_URL", "")
+    OPENAI_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
 
 settings = Settings()
