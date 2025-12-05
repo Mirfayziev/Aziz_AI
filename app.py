@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from core.settings import settings
+from core.config import settings
 from core.database import create_db_and_tables
 
 # ROUTERS (13 modul uchun)
