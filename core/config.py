@@ -11,7 +11,7 @@ if ENV_PATH.exists():
 class Settings:
     PROJECT_NAME: str = "Aziz AI Super Digital Clone – Backend"
 
-    API_PREFIX: str = "/api"   # Routerlar prefixi
+    API_PREFIX: str = ""   # Routerlar prefixi
 
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
 
