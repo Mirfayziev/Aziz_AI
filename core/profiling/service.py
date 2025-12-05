@@ -1,12 +1,15 @@
-from sqlalchemy.orm import Session
 from core.profiling.model import ProfilingEvent
+from core.database import SessionLocal
 
-def log_event(db: Session, event_type: str, metadata: dict):
-    event = ProfilingEvent(event_type=event_type, metadata=metadata)
-    db.add(event)
+def get_events():
+    db = SessionLocal()
+    events = db.query(ProfilingEvent).all()
+    return [ {"id": e.id, "event": e.event, "metadata": e.metadata} for e in events ]
+
+def add_event(data: dict):
+    db = SessionLocal()
+    ev = ProfilingEvent(event=data.get("event"), metadata=data.get("metadata"))
+    db.add(ev)
     db.commit()
-    db.refresh(event)
-    return event
-
-def get_events(db: Session):
-    return db.query(ProfilingEvent).all()
+    db.refresh(ev)
+    return {"id": ev.id}
