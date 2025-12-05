@@ -1,7 +1,14 @@
 import os
-import requests
 import logging
-from telegram.ext import Updater, MessageHandler, Filters, CommandHandler
+import requests
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder,
+    MessageHandler,
+    CommandHandler,
+    ContextTypes,
+    filters,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -16,77 +23,85 @@ print("BACKEND_CHAT_URL =", BACKEND_CHAT_URL)
 print("BACKEND_AUDIO_URL =", BACKEND_AUDIO_URL)
 print("BACKEND_PLANNER_URL =", BACKEND_PLANNER_URL)
 
-# ============ TEXT CHAT ============
-def handle_text(update, context):
-    user_id = update.message.chat_id
+# ===================== TEXT CHAT =====================
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_chat.id
     text = update.message.text
 
+    payload = {"user_id": user_id, "message": text}
+
     try:
-        payload = {"user_id": user_id, "message": text}
-        response = requests.post(f"{BACKEND_CHAT_URL}", json=payload, timeout=30)
+        response = requests.post(BACKEND_CHAT_URL, json=payload, timeout=20)
 
         if response.status_code == 200:
             reply = response.json().get("reply", "❗️ Javob topilmadi.")
-            update.message.reply_text(reply)
+            await update.message.reply_text(reply)
         else:
-            update.message.reply_text(f"❗️ Backend chat xatosi: {response.status_code}")
+            await update.message.reply_text(f"❗️ Chat backend xatosi {response.status_code}")
 
     except Exception as e:
-        update.message.reply_text(f"❗️ Chat xatosi: {str(e)}")
+        await update.message.reply_text(f"❗️ Chat xatosi: {str(e)}")
 
 
-# ============ VOICE (AUDIO) MODE ============
-def handle_voice(update, context):
-    user_id = update.message.chat_id
+# ===================== AUDIO (VOICE) =====================
+async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_chat.id
 
-    voice_file = update.message.voice.get_file()
-    file_path = voice_file.download()
-
-    files = {"file": open(file_path, "rb")}
-    data = {"user_id": user_id}
+    voice = update.message.voice
+    file = await voice.get_file()
+    file_path = await file.download_to_drive()
 
     try:
-        response = requests.post(BACKEND_AUDIO_URL, files=files, data=data, timeout=40)
+        with open(file_path, "rb") as f:
+            files = {"file": f}
+            data = {"user_id": user_id}
+
+            response = requests.post(BACKEND_AUDIO_URL, files=files, data=data, timeout=40)
 
         if response.status_code == 200:
-            reply = response.json().get("reply", "❗️ Audio javob topilmadi.")
-            update.message.reply_text(reply)
+            reply = response.json().get("reply", "❗️ Audio qayta ishlanmadi.")
+            await update.message.reply_text(reply)
         else:
-            update.message.reply_text("❗️ Audio qayta ishlash xatosi.")
+            await update.message.reply_text("❗️ Audio backend xatosi.")
 
     except Exception as e:
-        update.message.reply_text(f"❗️ Audio xatosi: {str(e)}")
+        await update.message.reply_text(f"❗️ Audio xatosi: {str(e)}")
 
 
-# ============ PLANNER ============
-def planner(update, context):
-    user_id = update.message.chat_id
+# ===================== PLANNER =====================
+async def planner(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_chat.id
 
     try:
-        response = requests.post(BACKEND_PLANNER_URL, json={"user_id": user_id}, timeout=20)
+        res = requests.post(BACKEND_PLANNER_URL, json={"user_id": user_id}, timeout=20)
 
-        if response.status_code == 200:
-            reply = response.json().get("plan", "❗️ Reja topilmadi.")
-            update.message.reply_text(reply)
+        if res.status_code == 200:
+            reply = res.json().get("plan", "❗️ Reja topilmadi.")
+            await update.message.reply_text(reply)
         else:
-            update.message.reply_text("❗️ Planner xatosi!")
-
+            await update.message.reply_text("❗️ Planner xatosi!")
     except Exception as e:
-        update.message.reply_text(str(e))
+        await update.message.reply_text(str(e))
 
 
-# ============ START BOT ============
+# ===================== START BOT =====================
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("👋 Salom! Men hozirmiz. Buyruqlar: \n /plan – kundalik reja")
+
+
 def main():
-    updater = Updater(BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    dp.add_handler(CommandHandler("start", planner))
-    dp.add_handler(CommandHandler("plan", planner))
-    dp.add_handler(MessageHandler(Filters.voice, handle_voice))
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
+    # commands
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("plan", planner))
 
-    updater.start_polling()
-    updater.idle()
+    # message handlers
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    app.add_handler(MessageHandler(filters.VOICE, handle_voice))
+
+    print("Bot polling started...")
+    app.run_polling()
 
 
 if __name__ == "__main__":
