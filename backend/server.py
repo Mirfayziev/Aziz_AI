@@ -1,30 +1,31 @@
-import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from chat import router as chat_router
+from audio import router as audio_router
+from auth import router as auth_router
+from planner import router as planner_router
+from summary import router as summary_router
+from users import router as users_router
 
-from routers import chat, audio, memory, planner, summary, users, auth
+app = FastAPI(title="Aziz AI Backend")
 
-app = FastAPI()
-
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(chat.router, prefix="/chat")
-app.include_router(audio.router, prefix="/audio")
-app.include_router(memory.router, prefix="/memory")
-app.include_router(planner.router, prefix="/planner")
-app.include_router(summary.router, prefix="/summary")
-app.include_router(users.router, prefix="/users")
-app.include_router(auth.router, prefix="/auth")
+# Routers
+app.include_router(chat_router, prefix="/api/chat")
+app.include_router(audio_router, prefix="/api/audio")
+app.include_router(auth_router, prefix="/api/auth")
+app.include_router(planner_router, prefix="/api/planner")
+app.include_router(summary_router, prefix="/api/summary")
+app.include_router(users_router, prefix="/api/users")
 
 @app.get("/")
-def root():
-    return {"msg": "Backend ishlayapti"}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("server:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+async def root():
+    return {"message": "Backend working ✔️"}
