@@ -1,0 +1,9 @@
+
+fastapi
+uvicorn[standard]
+SQLAlchemy
+psycopg2-binary
+python-dotenv
+openai
+python-telegram-bot==20.7
+requests
