@@ -1,26 +1,26 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.schemas import AudioRequest, AudioResponse
-from app.services.audio_service import process_audio_message
+from app.services.audio_service import process_audio
 
-router = APIRouter(tags=["audio"])
+router = APIRouter()
 
 
-@router.post("", response_model=AudioResponse)
-def handle_audio(req: AudioRequest, db: Session = Depends(get_db)):
-    """
-    Telegram botdan kelgan audio_base64 ni qabul qiladi,
-    Whisper orqali matnga aylantiradi va chat modeli orqali javob qaytaradi.
-    """
+class AudioRequest(BaseModel):
+    user_id: int
+    audio_base64: str
+
+
+@router.post("/")
+def audio_endpoint(payload: AudioRequest, db: Session = Depends(get_db)):
     try:
-        text, reply = process_audio_message(
+        result = process_audio(
             db=db,
-            external_id=req.user_external_id,
-            audio_base64=req.audio_base64,
-            model_tier=req.model_tier,
+            user_id=payload.user_id,
+            audio_base64=payload.audio_base64
         )
-        return AudioResponse(text=text, reply=reply)
+        return result  # {"text": "...", "reply": "..."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
