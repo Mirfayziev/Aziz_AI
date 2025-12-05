@@ -1,28 +1,39 @@
-from sqlalchemy.orm import Session
-from datetime import datetime, date
-from ..models import Plan
-from .memory_service import get_or_create_user
+from openai import OpenAI
+import os
 
-def create_plan(db: Session, external_id: str, title: str, description: str | None, scheduled_for: str | None):
-    user = get_or_create_user(db, external_id)
-    plan = Plan(
-        user_id=user.id,
-        title=title,
-        description=description,
-        scheduled_for=scheduled_for,
-        status="pending",
-    )
-    db.add(plan)
-    db.commit()
-    db.refresh(plan)
-    return plan
+client = OpenAI()
 
-def get_today_plans(db: Session, external_id: str):
-    user = get_or_create_user(db, external_id)
-    today_str = date.today().isoformat()
-    return (
-        db.query(Plan)
-        .filter(Plan.user_id == user.id)
-        .filter(Plan.scheduled_for == today_str)
-        .all()
+MODEL_DEFAULT = os.getenv("MODEL_DEFAULT", "gpt-4.1")
+MODEL_FAST = os.getenv("MODEL_FAST", "gpt-4o-mini")
+MODEL_DEEP = os.getenv("MODEL_DEEP", "o1")
+
+def get_model(tier: str):
+    if tier == "fast":
+        return MODEL_FAST
+    if tier == "deep":
+        return MODEL_DEEP
+    return MODEL_DEFAULT
+
+
+def generate_plan(query: str, model_tier: str = "default"):
+    model = get_model(model_tier)
+
+    completion = client.chat.completions.create(
+        model=model,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Siz Aziz AI planner modulisiz. "
+                    "Foydalanuvchi 'bugungi reja', 'ertangi ishlar', 'haftalik reja', "
+                    "'oylik strategiya' kabi qisqa buyruqlar bersa, "
+                    "siz darhol professional, strukturali va amaliy reja tuzasiz. "
+                    "Hech qachon savol qaytarmang. "
+                    "Har doim to‘g‘ridan-to‘g‘ri reja bilan javob bering."
+                )
+            },
+            {"role": "user", "content": query}
+        ]
     )
+
+    return completion.choices[0].message.content
