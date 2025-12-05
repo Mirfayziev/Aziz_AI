@@ -1,5 +1,6 @@
 fastapi
 uvicorn
-python-dotenv
-requests
-httpx==0.26.0
+pydantic
+python-multipart
+openai
+httpx
