@@ -3,7 +3,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from core.database import get_db
-from core.memory.service import add_memory, search_memory, delete_memory
 
 router = APIRouter(prefix="/api/memory", tags=["Memory Engine"])
 
@@ -21,3 +20,4 @@ async def search_memory_api(query: str, db: Session = Depends(get_db)):
 async def delete_memory_api(memory_id: int, db: Session = Depends(get_db)):
     result = await delete_memory(db, memory_id)
     return {"deleted": result}
+
