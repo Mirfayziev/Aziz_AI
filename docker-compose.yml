@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD}@postgres:5432/aziz_ai
+    depends_on:
+      - postgres
+
+  telegram_bot:
+    build: ./telegram_bot
+    command: uvicorn server:app --host 0.0.0.0 --port 9000
+    ports:
+      - "9000:9000"
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      AZIZ_BACKEND_CHAT_URL: http://backend:8000/api/chat
+      AZIZ_BACKEND_AUDIO_URL: http://backend:8000/api/audio
+    depends_on:
+      - backend
+
+  postgres:
+    image: postgres:15
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: aziz_ai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
