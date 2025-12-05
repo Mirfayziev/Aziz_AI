@@ -1,171 +1,92 @@
 import os
-import base64
 import requests
-from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    MessageHandler,
-    CommandHandler,
-    ContextTypes,
-    filters,
-)
+import logging
+from telegram.ext import Updater, MessageHandler, Filters, CommandHandler
 
-# ====== ENV ======
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-BACKEND_CHAT_URL = os.getenv("BACKEND_CHAT_URL", "").strip()
-BACKEND_AUDIO_URL = os.getenv("BACKEND_AUDIO_URL", "").strip()
-BACKEND_PLANNER_URL = os.getenv("BACKEND_PLANNER_URL", "").strip()
+BACKEND_CHAT_URL = os.getenv("BACKEND_CHAT_URL", "").strip().rstrip("/")
+BACKEND_AUDIO_URL = os.getenv("BACKEND_AUDIO_URL", "").strip().rstrip("/")
+BACKEND_PLANNER_URL = os.getenv("BACKEND_PLANNER_URL", "").strip().rstrip("/")
 
 print("BACKEND_CHAT_URL =", BACKEND_CHAT_URL)
 print("BACKEND_AUDIO_URL =", BACKEND_AUDIO_URL)
 print("BACKEND_PLANNER_URL =", BACKEND_PLANNER_URL)
 
-if not BOT_TOKEN:
-    raise ValueError("❌ TELEGRAM_BOT_TOKEN o‘rnatilmagan!")
-if not BACKEND_CHAT_URL:
-    raise ValueError("❌ BACKEND_CHAT_URL o‘rnatilmagan!")
-
-
-# ====== Planner trigger ======
-def is_planner_query(text: str) -> bool:
-    if not text:
-        return False
-    t = text.lower()
-    triggers = [
-        "bugungi reja",
-        "bugungi ishlar",
-        "bugun nima qilay",
-        "ertangi reja",
-        "ertangi ishlar",
-        "haftalik reja",
-        "oylik reja",
-        "plan tuz",
-        "reja tuz",
-    ]
-    return any(x in t for x in triggers)
-
-
-# ====== /start ======
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🤖 Aziz AI tayyor!\n"
-        "- Matn yozing – chat javob beradi\n"
-        "- Ovoz yuboring – ovozdan matn va javob olasiz\n"
-        "- “bugungi ishlar”, “ertangi reja” kabi yozsangiz – planner ishlaydi"
-    )
-
-
-# ====== TEXT HANDLER (chat + planner) ======
-async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.message.from_user.id
-    text = update.message.text or ""
-
-    # 1) Planner so‘rovi bo‘lsa
-    if BACKEND_PLANNER_URL and is_planner_query(text):
-        await update.message.reply_text("⏳ Reja tuzilmoqda...")
-
-        payload = {
-            "user_id": user_id,
-            "query": text,
-            "model_tier": "default",
-        }
-
-        try:
-            r = requests.post(BACKEND_PLANNER_URL, json=payload, timeout=40)
-            if r.status_code != 200:
-                await update.message.reply_text("⚠️ Planner xatosi.")
-                print("Planner error:", r.status_code, r.text)
-                return
-
-            data = r.json()
-            plan = data.get("result", "⚠️ Reja qaytmadi.")
-            await update.message.reply_text(f"🗓 *Siz uchun reja:*\n\n{plan}", parse_mode="Markdown")
-
-        except Exception as e:
-            await update.message.reply_text(f"⚠️ Planner API xatosi: {e}")
-
-        return
-
-    # 2) Oddiy chat
-    payload = {
-        "user_id": user_id,
-        "message": text,
-    }
+# ============ TEXT CHAT ============
+def handle_text(update, context):
+    user_id = update.message.chat_id
+    text = update.message.text
 
     try:
-        r = requests.post(BACKEND_CHAT_URL, json=payload, timeout=25)
-        if r.status_code != 200:
-            await update.message.reply_text("❗ Backend chat javobi xato.")
-            print("Chat error:", r.status_code, r.text)
-            return
+        payload = {"user_id": user_id, "message": text}
+        response = requests.post(f"{BACKEND_CHAT_URL}", json=payload, timeout=30)
 
-        data = r.json()
-        reply = data.get("reply", "")
-
-        if not reply:
-            await update.message.reply_text("❗ AI javob qaytarmadi.")
-            print("Empty reply:", data)
-            return
-
-        await update.message.reply_text(reply)
+        if response.status_code == 200:
+            reply = response.json().get("reply", "❗️ Javob topilmadi.")
+            update.message.reply_text(reply)
+        else:
+            update.message.reply_text(f"❗️ Backend chat xatosi: {response.status_code}")
 
     except Exception as e:
-        await update.message.reply_text("❗ AI javob qaytarmadi.")
-        print("Chat exception:", e)
+        update.message.reply_text(f"❗️ Chat xatosi: {str(e)}")
 
 
-# ====== VOICE HANDLER ======
-async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not BACKEND_AUDIO_URL:
-        await update.message.reply_text("⚠️ Audio uchun BACKEND_AUDIO_URL sozlanmagan.")
-        return
+# ============ VOICE (AUDIO) MODE ============
+def handle_voice(update, context):
+    user_id = update.message.chat_id
 
-    user_id = update.message.from_user.id
-    voice = update.message.voice
+    voice_file = update.message.voice.get_file()
+    file_path = voice_file.download()
+
+    files = {"file": open(file_path, "rb")}
+    data = {"user_id": user_id}
 
     try:
-        # Telegramdan faylni yuklab olamiz
-        file = await context.bot.get_file(voice.file_id)
-        file_bytes = await file.download_as_bytearray()
+        response = requests.post(BACKEND_AUDIO_URL, files=files, data=data, timeout=40)
 
-        audio_b64 = base64.b64encode(file_bytes).decode()
-
-        payload = {
-            "user_id": user_id,
-            "audio_base64": audio_b64,
-        }
-
-        r = requests.post(BACKEND_AUDIO_URL, json=payload, timeout=60)
-        if r.status_code != 200:
-            await update.message.reply_text("⚠️ Audio backend xatosi.")
-            print("Audio error:", r.status_code, r.text)
-            return
-
-        data = r.json()
-        text = data.get("text", "(matn olinmadi)")
-        reply = data.get("reply", "(javob olinmadi)")
-
-        await update.message.reply_text(
-            f"🎙 *Matn:* {text}\n\n🤖 *Javob:* {reply}",
-            parse_mode="Markdown"
-        )
+        if response.status_code == 200:
+            reply = response.json().get("reply", "❗️ Audio javob topilmadi.")
+            update.message.reply_text(reply)
+        else:
+            update.message.reply_text("❗️ Audio qayta ishlash xatosi.")
 
     except Exception as e:
-        await update.message.reply_text("⚠️ Audio qayta ishlashda xato.")
-        print("Voice exception:", e)
+        update.message.reply_text(f"❗️ Audio xatosi: {str(e)}")
 
 
-# ====== APP ======
+# ============ PLANNER ============
+def planner(update, context):
+    user_id = update.message.chat_id
+
+    try:
+        response = requests.post(BACKEND_PLANNER_URL, json={"user_id": user_id}, timeout=20)
+
+        if response.status_code == 200:
+            reply = response.json().get("plan", "❗️ Reja topilmadi.")
+            update.message.reply_text(reply)
+        else:
+            update.message.reply_text("❗️ Planner xatosi!")
+
+    except Exception as e:
+        update.message.reply_text(str(e))
+
+
+# ============ START BOT ============
 def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    updater = Updater(BOT_TOKEN, use_context=True)
+    dp = updater.dispatcher
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.VOICE, handle_voice))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+    dp.add_handler(CommandHandler("start", planner))
+    dp.add_handler(CommandHandler("plan", planner))
+    dp.add_handler(MessageHandler(Filters.voice, handle_voice))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_text))
 
-    print("🤖 Aziz AI bot polling boshlandi...")
-    app.run_polling()
+    updater.start_polling()
+    updater.idle()
 
 
 if __name__ == "__main__":
