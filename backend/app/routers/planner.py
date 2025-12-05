@@ -15,10 +15,7 @@ class PlanResponse(BaseModel):
 @router.post("", response_model=PlanResponse)
 def planner(req: PlanRequest):
     try:
-        result = generate_plan(
-            query=req.query,
-            model_tier=req.model_tier
-        )
+        result = generate_plan(req.query, req.model_tier)
         return PlanResponse(result=result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
