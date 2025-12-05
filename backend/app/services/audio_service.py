@@ -1,18 +1,24 @@
 import base64
-import openai
+from openai import OpenAI
 from .chat_service import create_chat_reply
 
+client = OpenAI()
+
+
 def process_audio_message(db, external_id: str, audio_base64: str, model_tier: str):
-    # Base64 → binary
+
+    # 1) Base64 → Bytes
     audio_bytes = base64.b64decode(audio_base64)
 
-    # Speech-to-text
-    text = openai.Audio.transcriptions.create(
-        model="gpt-4o-mini-tts",
+    # 2) Speech-to-Text (Whisper)
+    transcription = client.audio.transcriptions.create(
+        model="whisper-1",
         file=("audio.ogg", audio_bytes)
-    ).text
+    )
 
-    # AI javobi
+    text = transcription.text
+
+    # 3) AI javobi yaratish (chat model)
     reply = create_chat_reply(
         db=db,
         external_id=external_id,
@@ -21,3 +27,4 @@ def process_audio_message(db, external_id: str, audio_base64: str, model_tier: s
     )
 
     return text, reply
+
