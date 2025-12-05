@@ -1,46 +1,61 @@
 from sqlalchemy.orm import Session
-from app.models import Memory
-from datetime import datetime
+from app.models import User, Memory, Message
+from app.db import engine
+from openai import OpenAI
+import json
+
+client = OpenAI()
 
 
-# ===== Xotiradan kontekst olish =====
-def get_memory_context(user_id: int, db: Session):
-    records = (
-        db.query(Memory)
-        .filter(Memory.user_id == user_id)
-        .order_by(Memory.created_at.desc())
-        .limit(10)
-        .all()
-    )
-
-    # Faqat matnni qaytaramiz
-    context = "\n".join([f"User: {m.user_message}\nAI: {m.ai_reply}" for m in records])
-    return context
+# --- FOYDALANUVCHI OLISH yoki YARATISH ---
+def get_or_create_user(db: Session, external_id: str):
+    user = db.query(User).filter(User.external_id == external_id).first()
+    if not user:
+        user = User(external_id=external_id)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    return user
 
 
+# --- XOTIRA SAQLASH ---
+def save_memory(db: Session, user_id: int, text: str, tags=None):
+    embedding = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=text
+    ).data[0].embedding
 
-# ===== Xotirani saqlash =====
-def save_memory(user_id: int, message: str, reply: str, db: Session):
-    obj = Memory(
+    mem = Memory(
         user_id=user_id,
-        user_message=message,
-        ai_reply=reply,
-        created_at=datetime.utcnow()
+        content=text,
+        tags=tags or [],
+        embedding=embedding
     )
-    db.add(obj)
+    db.add(mem)
     db.commit()
-    db.refresh(obj)
-    return obj
+    return mem
 
 
+# --- XOTIRANI TOPISH (vektor bo‘yicha) ---
+def search_memory(db: Session, user_id: int, query: str, limit: int = 5):
+    query_embedding = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=query
+    ).data[0].embedding
 
-# ===== Foydalanuvchi tarixini olish (ixtiyoriy) =====
-def get_user_history(user_id: int, db: Session, limit: int = 20):
-    records = (
-        db.query(Memory)
-        .filter(Memory.user_id == user_id)
-        .order_by(Memory.created_at.desc())
-        .limit(limit)
-        .all()
-    )
-    return records
+    memories = db.query(Memory).filter(Memory.user_id == user_id).all()
+
+    def cosine(a, b):
+        import math
+        return sum(i*j for i, j in zip(a, b)) / (
+            math.sqrt(sum(i*i for i in a)) *
+            math.sqrt(sum(j*j for j in b))
+        )
+
+    scored = [
+        (cosine(query_embedding, m.embedding), m)
+        for m in memories if m.embedding
+    ]
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [m for _, m in scored[:limit]]
