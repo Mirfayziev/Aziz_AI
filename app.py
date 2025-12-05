@@ -1,26 +1,33 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from core.config import settings
-from core.database import Base, engine
-from core.personality import router as personality_router
-from core.memory.router import router as memory_router
-from core.chat import router as chat_router
-from core.agent import router as agent_router
-from core.office import router as office_router
-from core.audio import router as audio_router
-from core.planner.router import planner_router
+from core.settings import settings
+from core.database import create_db_and_tables
 
-def init_db() -> None:
-    Base.metadata.create_all(bind=engine)
+# ROUTERS (13 modul uchun)
+from core.memory.router import router as memory_router
+from core.personality.router import router as personality_router
+from core.profiling.router import router as profiling_router
+from core.chat.router import router as chat_router
+from core.context.router import router as context_router
+from core.longterm.router import router as longterm_router
+from core.shortterm.router import router as short_router
+from core.office.router import router as office_router
+from core.audio.router import router as audio_router
+from core.agent.router import router as agent_router
+from core.home.router import router as home_router
+from core.mobile.router import router as mobile_router
+from core.system.router import router as system_router
 
 
 def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.PROJECT_NAME,
-        debug=settings.DEBUG
+        version="1.0.0",
+        description="Aziz AI – 13 module AI Backend (Memory, Profiling, Chat, Office, Voice, Agents)"
     )
 
+    # CORS
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -29,34 +36,30 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    api_prefix = settings.API_PREFIX
+    # Routerlarni ulash
+    app.include_router(memory_router,     prefix=settings.API_PREFIX)
+    app.include_router(personality_router, prefix=settings.API_PREFIX)
+    app.include_router(profiling_router,  prefix=settings.API_PREFIX)
+    app.include_router(chat_router,       prefix=settings.API_PREFIX)
+    app.include_router(context_router,    prefix=settings.API_PREFIX)
+    app.include_router(longterm_router,   prefix=settings.API_PREFIX)
+    app.include_router(short_router,      prefix=settings.API_PREFIX)
+    app.include_router(office_router,     prefix=settings.API_PREFIX)
+    app.include_router(audio_router,      prefix=settings.API_PREFIX)
+    app.include_router(agent_router,      prefix=settings.API_PREFIX)
+    app.include_router(home_router,       prefix=settings.API_PREFIX)
+    app.include_router(mobile_router,     prefix=settings.API_PREFIX)
+    app.include_router(system_router,     prefix=settings.API_PREFIX)
 
-    app.include_router(personality_router, prefix=api_prefix)
-    app.include_router(memory_router, prefix=settings.API_PREFIX)
-    app.include_router(chat_router, prefix=api_prefix)
-    app.include_router(agent_router, prefix=api_prefix)
-    app.include_router(office_router, prefix=api_prefix)
-    app.include_router(audio_router, prefix=api_prefix)
-    app.include_router(planner_router, prefix=API_PREFIX)
-   
-    @app.get("/")   # 👈 bitta qatorda bo‘lishi shart!
+    @app.on_event("startup")
+    async def startup_event():
+        create_db_and_tables()
+
+    @app.get("/")
     async def root():
-        return {
-            "message": "Aziz AI Super Digital Clone - 6 yadroli backend ishlayapti ✔️",
-            "modules": [
-                "Personality Engine",
-                "Memory Engine",
-                "Chat Engine (GPT-5.1)",
-                "Internet Agent",
-                "Office Agent",
-                "Voice + Animation Engine"
-            ],
-            "api_prefix": api_prefix
-        }
-
+        return {"message": "Aziz AI Backend 13-module super AI ishga tushdi ✔️"}
 
     return app
 
 
-init_db()
 app = create_app()
