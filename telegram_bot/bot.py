@@ -2,19 +2,28 @@ import os
 import httpx
 from aiogram import Bot, Dispatcher, types
 
-bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN"))
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+CHAT_URL = os.getenv("AZIZ_BACKEND_CHAT_URL")
+bot = Bot(TOKEN)
 dp = Dispatcher()
 
-CHAT_API = os.getenv("AZIZ_BACKEND_CHAT_URL")
-AUDIO_API = os.getenv("AZIZ_BACKEND_AUDIO_URL")
-
 @dp.message()
-async def handler(msg: types.Message):
-    user_text = msg.text
+async def all_messages(message: types.Message):
 
+    # Foydalanuvchi xabari
+    user_text = message.text
+
+    # Backendga yuboramiz
     async with httpx.AsyncClient() as client:
-        res = await client.post(CHAT_API, json={"text": user_text})
+        response = await client.post(
+            CHAT_URL,
+            json={"message": user_text}
+        )
 
-    ai_text = res.json().get("response", "❌ AI javobi topilmadi")
+    if response.status_code != 200:
+        await message.answer("⚠️ Server javob bermadi, keyinroq urinib ko‘ring.")
+        return
 
-    await msg.answer(ai_text)
+    ai_text = response.json().get("reply", "⚠️ AI javobi topilmadi.")
+
+    await message.answer(ai_text)
