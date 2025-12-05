@@ -8,7 +8,7 @@ from core.database import create_db_and_tables
 # ROUTERS (13 modul uchun)
 from core.memory.router import router as memory_router
 from core.personality import personality_router
-from core.profiling.router import router as profiling_router
+from core.profiling.router import profiling_router
 from core.chat.router import router as chat_router
 from core.context.router import router as context_router
 from core.longterm.router import router as longterm_router
@@ -40,7 +40,7 @@ def create_app() -> FastAPI:
     # Routerlarni ulash
     app.include_router(memory_router,     prefix=settings.API_PREFIX)
     app.include_router(personality_router)
-    app.include_router(profiling_router,  prefix=settings.API_PREFIX)
+    app.include_router(profiling_router)
     app.include_router(chat_router,       prefix=settings.API_PREFIX)
     app.include_router(context_router,    prefix=settings.API_PREFIX)
     app.include_router(longterm_router,   prefix=settings.API_PREFIX)
