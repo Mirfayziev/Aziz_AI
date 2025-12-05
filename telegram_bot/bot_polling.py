@@ -11,9 +11,22 @@ BACKEND_AUDIO_URL = os.getenv("BACKEND_AUDIO_URL")
 bot = Bot(TOKEN)
 dp = Dispatcher()
 
+# ============ MODEL TIER (foydalanuvchi buyruqlariga qarab) ============
+def detect_tier(message: types.Message) -> str:
+    text = message.text.lower() if message.text else ""
 
+    if text.startswith("/fast"):
+        return "fast"
+    if text.startswith("/deep"):
+        return "deep"
+    return "default"   # ChatGPT darajasida ishlovchi asosiy model
+
+
+# ============ HANDLER ==============
 @dp.message()
 async def ai_handler(message: types.Message):
+
+    model_tier = detect_tier(message)
 
     # 1) VOICE MESSAGE (AUDIO)
     if message.voice:
@@ -33,17 +46,20 @@ async def ai_handler(message: types.Message):
         payload = {
             "user_external_id": str(message.from_user.id),
             "audio_base64": audio_b64,
-            "model_tier": "basic"
+            "model_tier": model_tier   # <<< TIER
         }
 
         try:
-            resp = requests.post(BACKEND_AUDIO_URL, json=payload, timeout=30)
+            resp = requests.post(BACKEND_AUDIO_URL, json=payload, timeout=60)
             data = resp.json()
 
             text = data.get("text", "(matn olinmadi)")
             reply = data.get("reply", "(javob olinmadi)")
 
-            await message.answer(f"🎙 *Matn*: {text}\n\n🤖 *AI javobi*: {reply}", parse_mode="Markdown")
+            await message.answer(
+                f"🎙 *Matn*: {text}\n\n🤖 *AI javobi*: {reply}",
+                parse_mode="Markdown"
+            )
 
         except Exception as e:
             await message.answer(f"⚠️ AUDIO xatosi: {e}")
@@ -58,11 +74,11 @@ async def ai_handler(message: types.Message):
     payload = {
         "user_external_id": str(message.from_user.id),
         "message": message.text,
-        "model_tier": "basic"
+        "model_tier": model_tier   # <<< TIER
     }
 
     try:
-        resp = requests.post(BACKEND_CHAT_URL, json=payload, timeout=15)
+        resp = requests.post(BACKEND_CHAT_URL, json=payload, timeout=30)
         data = resp.json()
         reply_text = data.get("reply", "❗ AI javob qaytarmadi.")
     except Exception as e:
@@ -71,6 +87,7 @@ async def ai_handler(message: types.Message):
     await message.answer(reply_text)
 
 
+# ============ MAIN =============
 async def main():
     print("🤖 Bot polling started...")
     print("BACKEND_CHAT_URL =", BACKEND_CHAT_URL)
