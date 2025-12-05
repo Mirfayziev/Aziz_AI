@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request, BackgroundTasks
 import json
 import bot  # bot.py dagi AI logika
+from bot import app
 
 app = FastAPI()
 
