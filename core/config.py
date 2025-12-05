@@ -1,19 +1,15 @@
 import os
-from pathlib import Path
 from dotenv import load_dotenv
+from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-ENV_PATH = BASE_DIR / ".env"
-
-if ENV_PATH.exists():
-    load_dotenv(ENV_PATH)
+load_dotenv(BASE_DIR / ".env")
 
 class Settings:
-    PROJECT_NAME: str = "Aziz AI — Super Digital Clone"
+    PROJECT_NAME: str = "Aziz AI Super Digital Clone — Backend"
     API_PREFIX: str = "/api"
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "")  # MUHIM
 
-    DB_URL: str = os.getenv("DATABASE_URL", "")
-    OPENAI_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
+    # boshqa sozlamalar...
 
 settings = Settings()
