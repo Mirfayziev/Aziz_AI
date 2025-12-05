@@ -22,3 +22,18 @@ async def summarize_day(activities: str):
     """
 
     return await ai_generate_plan(prompt)
+
+def generate_plan(text: str):
+    """
+    Hozircha demo funksiya.
+    Keyin ChatGPT / Aziz AI modeliga ulaymiz.
+    """
+    return {
+        "input": text,
+        "plan": [
+            "1) Vazifa bo‘yicha ustuvorlik belgilandi",
+            "2) Amalga oshirish bosqichlari tuzildi",
+            "3) Deadlinelar belgilandi"
+        ],
+        "status": "draft"
+    }
