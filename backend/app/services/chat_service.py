@@ -1,64 +1,54 @@
-from sqlalchemy.orm import Session
-from .openai_client import client, get_model_by_tier
-from ..models import User, Message
-from .memory_service import search_memories, get_or_create_user
+from openai import OpenAI
+from fastapi import HTTPException
+import os
 
-SYSTEM_PROMPT = (
-    "Siz 'Aziz AI' nomli shaxsiy yordamchisiz. "
-    "Foydalanuvchi Aziz Fayziev bilan uzoq muddatli munosabatga ega bo'lasiz. "
-    "Profil ma'lumotlari, maqsadlari va kundalik odatlarini yodda tuting. "
-    "Javoblaringiz qisqa, aniq va samimiy bo'lsin."
-)
+client = OpenAI()
 
-def create_chat_reply(
-    db: Session,
-    external_id: str,
-    message: str,
-    model_tier: str = "default"
-) -> str:
-    user = get_or_create_user(db, external_id)
+# Variables from Railway
+MODEL_DEFAULT = os.getenv("MODEL_DEFAULT", "gpt-4.1")      # Asosiy model — ChatGPT darajasi
+MODEL_FAST = os.getenv("MODEL_FAST", "gpt-4o-mini")        # Tez model
+MODEL_DEEP = os.getenv("MODEL_DEEP", "o1")                 # Chuqur fikrlash modeli
 
-    # Oxirgi 10 ta xabarni tarix sifatida olamiz
-    history = (
-        db.query(Message)
-        .filter_by(user_id=user.id)
-        .order_by(Message.created_at.desc())
-        .limit(10)
-        .all()
-    )
-    history = list(reversed(history))
 
-    # Eslanmalar (vector memory) bilan kontekst
-    memories = search_memories(db, external_id, message, top_k=3)
+def get_model_by_tier(tier: str):
+    """
+    tier = 'default', 'fast', 'deep'
+    """
+    if tier == "fast":
+        return MODEL_FAST
+    if tier == "deep":
+        return MODEL_DEEP
+    return MODEL_DEFAULT   # default
 
-    # OpenAI chat so'rovini tayyorlash
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-    if memories:
-        mem_text = "\n".join([f"- {m.content}" for m in memories])
-        messages.append({
-            "role": "system",
-            "content": f"Quyidagi foydali eslamalar: \n{mem_text}"
-        })
 
-    for m in history:
-        messages.append({
-            "role": m.role,
-            "content": m.content
-        })
+def create_chat_reply(message: str, tier: str = "default"):
+    """
+    Chat javobi qaytaruvchi asosiy funksiya.
+    tier → qaysi model ishlatilishini belgilaydi
+    """
 
-    messages.append({"role": "user", "content": message})
+    model = get_model_by_tier(tier)
 
-    model = get_model_by_tier(model_tier)
+    try:
+        completion = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Siz Aziz AI. Siz ChatGPT 5.1 darajasidagi sun'iy intellektsiz. "
+                        "Siz 2025–2030 yillarga doir real ma’lumotlar, innovatsiyalar, kino yangiliklari, "
+                        "AI texnologiyalari, ilmiy kashfiyotlar haqida aniq va zamonaviy javob berasiz. "
+                        "Siz mantiqan chuqur fikrlaysiz, strategiya, tahlil, maslahat bera olasiz. "
+                        "Siz doimo aniq, mantiqli va foydalanuvchi tilida javob berasiz."
+                    )
+                },
+                {"role": "user", "content": message}
+            ]
+        )
 
-    chat = client.chat.completions.create(
-        model=model,
-        messages=messages,
-    )
-    reply = chat.choices[0].message.content.strip()
+        reply = completion.choices[0].message.content
+        return reply
 
-    # bazaga saqlash
-    db.add(Message(user_id=user.id, role="user", content=message))
-    db.add(Message(user_id=user.id, role="assistant", content=reply))
-    db.commit()
-
-    return reply
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI error: {str(e)}")
