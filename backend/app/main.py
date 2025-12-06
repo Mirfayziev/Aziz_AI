@@ -1,18 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .db import Base, engine
-from .routers.chat import router as chat_router
-from .routers.audio import router as audio_router
-from .routers.profile import router as profile_router
-from .routers.planner import router as planner_router
+# Routers
+from backend.app.routers.chat import router as chat_router
+from backend.app.routers.audio import router as audio_router
+from backend.app.routers.assistant import router as assistant_router
+from backend.app.routers.profile import router as profile_router
+from backend.app.routers.planner import router as planner_router
 
-# Agar kerak bo'lsa – tabelarni yaratish
-Base.metadata.create_all(bind=engine)
+app = FastAPI(title="Aziz AI Backend")
 
-app = FastAPI(title="Aziz AI Pro Backend (6-core)")
-
-# CORS sozlamalari
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,14 +19,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ⚠️ DIQQAT: bu yerda /api YO‘Q!
-# Tashqi app allaqachon /api ga mount qilingan.
-# Shuning uchun ichkarida faqat /chat, /audio va hokazo bo‘ladi.
-app.include_router(chat_router, prefix="/api", tags=["chat"])
-app.include_router(audio_router, prefix="/audio", tags=["audio"])
-app.include_router(profile_router, prefix="/profile", tags=["profile"])
-app.include_router(planner_router, prefix="/planner", tags=["planner"])
+# REGISTER ROUTERS (MUHIM QISM!)
+app.include_router(chat_router, prefix="/api/chat", tags=["chat"])
+app.include_router(audio_router, prefix="/api/audio", tags=["audio"])
+app.include_router(assistant_router, prefix="/api/assistant", tags=["assistant"])
+app.include_router(profile_router, prefix="/api/profile", tags=["profile"])
+app.include_router(planner_router, prefix="/api/planner", tags=["planner"])
 
 @app.get("/")
-def root():
-    return {"message": "Aziz AI Pro backend (6-core) working ✔️"}
+def home():
+    return {"message": "Backend running ✔️"}
