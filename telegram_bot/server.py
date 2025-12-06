@@ -1,29 +1,35 @@
-import os
-import bot as tg_bot
+import uvicorn
 from fastapi import FastAPI, Request
-from dotenv import load_dotenv
 
+# AI backend import
+from app.main import app as ai_app
 
-load_dotenv()
+# Telegram bot import
+import telegram.bot as tg_bot
 
-app = FastAPI(title="Aziz AI Telegram Bot")
+app = FastAPI(title="Aziz AI + Telegram Bot")
 
-@app.get("/")
-async def root():
-    return {"message": "Aziz AI Telegram bot working ✔️"}
+# 1) AI backend routerlarini birlashtiramiz
+app.mount("/api", ai_app)
 
-@app.post("/telegram-webhook")
-async def webhook(request: Request):
+# 2) Telegram webhook endpointi
+@app.post("/webhook")
+async def telegram_webhook(request: Request):
     update = await request.json()
 
     message = update.get("message") or {}
-    chat = message.get("chat")
-    if not chat:
-        return {"ok": True}
-
     if "text" in message:
         await tg_bot.handle_text_message(message)
     elif "voice" in message:
         await tg_bot.handle_voice_message(message)
 
     return {"ok": True}
+
+
+@app.get("/")
+def root():
+    return {"status": "Aziz AI + Telegram Bot Running ✔️"}
+
+
+if __name__ == "__main__":
+    uvicorn.run("server:app", host="0.0.0.0", port=8000)
