@@ -1,7 +1,6 @@
 import uvicorn
 from fastapi import FastAPI, Request
-from backend.app.main import app as backend_app
-
+from backend.app.main import app
 # Telegram bot funksiyasi
 from telegram_bot.bot import process_update
 
