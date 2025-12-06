@@ -1,15 +1,10 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from core.config import settings
+from core.config import DATABASE_URL
 
-DATABASE_URL = settings.DATABASE_URL
-
-engine = create_engine(DATABASE_URL, echo=False)
-
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
 Base = declarative_base()
-
 
 def get_db():
     db = SessionLocal()
@@ -17,8 +12,3 @@ def get_db():
         yield db
     finally:
         db.close()
-
-
-def create_db_and_tables():
-    import core.models
-    Base.metadata.create_all(bind=engine)
