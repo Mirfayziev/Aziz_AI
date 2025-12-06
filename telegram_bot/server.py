@@ -12,7 +12,7 @@ app = FastAPI(title="Aziz AI Telegram Bot")
 async def root():
     return {"message": "Aziz AI Telegram bot working ✔️"}
 
-@app.post("/webhook")
+@app.post("/telegram-webhook")
 async def webhook(request: Request):
     update = await request.json()
 
