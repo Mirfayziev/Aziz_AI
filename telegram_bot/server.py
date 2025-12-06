@@ -1,7 +1,8 @@
 import os
+import bot as tg_bot
 from fastapi import FastAPI, Request
 from dotenv import load_dotenv
-from . import bot as tg_bot
+
 
 load_dotenv()
 
