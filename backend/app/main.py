@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Routers
+# MUHIM: routerlarni to‘g‘ri import qilish
 from backend.app.routers.chat import router as chat_router
 from backend.app.routers.audio import router as audio_router
 from backend.app.routers.assistant import router as assistant_router
@@ -19,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# REGISTER ROUTERS (MUHIM QISM!)
+# ---- ROUTERS ----
 app.include_router(chat_router, prefix="/api/chat", tags=["chat"])
 app.include_router(audio_router, prefix="/api/audio", tags=["audio"])
 app.include_router(assistant_router, prefix="/api/assistant", tags=["assistant"])
@@ -27,5 +27,5 @@ app.include_router(profile_router, prefix="/api/profile", tags=["profile"])
 app.include_router(planner_router, prefix="/api/planner", tags=["planner"])
 
 @app.get("/")
-def home():
-    return {"message": "Backend running ✔️"}
+def root():
+    return {"status": "backend running"}
