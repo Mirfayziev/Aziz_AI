@@ -41,7 +41,7 @@ def create_app() -> FastAPI:
     app.include_router(memory_router,     prefix=settings.API_PREFIX)
     app.include_router(personality_router)
     app.include_router(profiling_router)
-    app.include_router(chat_router,       prefix=settings.API_PREFIX)
+    app.include_router(chat_router)
     app.include_router(context_router,    prefix=settings.API_PREFIX)
     app.include_router(longterm_router,   prefix=settings.API_PREFIX)
     app.include_router(short_router,      prefix=settings.API_PREFIX)
