@@ -1,6 +1,5 @@
 from fastapi import APIRouter
-import httpx
-import os
+from backend.app.services.chat import chat_servic
 
 router = APIRouter()
 
