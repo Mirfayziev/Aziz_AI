@@ -10,3 +10,4 @@ numpy
 python-multipart
 psycopg2-binary
 aiohttp
+requests
