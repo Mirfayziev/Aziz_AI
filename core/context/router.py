@@ -1,10 +1,8 @@
 from fastapi import APIRouter
+from .service import my_context_service  # misol
 
-context_router = APIRouter(
-    prefix="/api/context",
-    tags=["Context"]
-)
+router = APIRouter(prefix="/context", tags=["context"])
 
-@context_router.get("/ping")
-async def ping():
-    return {"status": "ok", "module": "context"}
+@router.get("/")
+def get_context():
+    return {"status": "ok"}
