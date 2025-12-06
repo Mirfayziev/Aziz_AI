@@ -24,7 +24,7 @@ app.add_middleware(
 # ⚠️ DIQQAT: bu yerda /api YO‘Q!
 # Tashqi app allaqachon /api ga mount qilingan.
 # Shuning uchun ichkarida faqat /chat, /audio va hokazo bo‘ladi.
-app.include_router(chat_router, prefix="/chat", tags=["chat"])
+app.include_router(chat_router, prefix="/api", tags=["chat"])
 app.include_router(audio_router, prefix="/audio", tags=["audio"])
 app.include_router(profile_router, prefix="/profile", tags=["profile"])
 app.include_router(planner_router, prefix="/planner", tags=["planner"])
