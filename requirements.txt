@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+pydantic-settings
+python-dotenv
+httpx
+openai>=1.6.0
+numpy
+python-multipart
+psycopg2-binary
