@@ -1,7 +1,10 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from .db import Base, engine
-from .routers import chat, audio, planner, profile, assistant
+from .routers.chat import router as chat_router
+from .routers.audio import router as audio_router
+from .routers.profile import router as profile_router
+from .routers.planner import router as planner_router
+
+app = FastAPI() 
 
 Base.metadata.create_all(bind=engine)
 
@@ -15,11 +18,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(chat.router, prefix="/api/chat")
-app.include_router(audio.router, prefix="/api/audio")
-app.include_router(planner.router, prefix="/api/planner")
-app.include_router(profile.router, prefix="/api/profile")
-app.include_router(assistant.router, prefix="/api/assistant")
+app.include_router(chat_router, prefix="/api")
+app.include_router(audio_router, prefix="/api")
+app.include_router(profile_router, prefix="/api")
+app.include_router(planner_router, prefix="/api")
 
 @app.get("/")
 def root():
