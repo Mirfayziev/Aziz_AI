@@ -1,8 +1,8 @@
 from fastapi import APIRouter
-from .service import my_context_service  # misol
+from .service import my_context_service   # ✔️ endi mavjud
 
-router = APIRouter(prefix="/context", tags=["context"])
+context_router = APIRouter(prefix="/api/context")
 
-@router.get("/")
-def get_context():
-    return {"status": "ok"}
+@context_router.post("/add")
+def add_context(data: dict):
+    return my_context_service(data)
