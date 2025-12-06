@@ -1,36 +1,41 @@
-import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-# AI backend (TO'G'RI IMPORT YO'LI)
-from backend.app.main import app as ai_app
+# Routers
+from backend.app.chat import router as chat_router
+from backend.app.audio import router as audio_router
+from backend.app.profile import router as profile_router
+from backend.app.planner import router as planner_router
 
-# Telegram bot (TO'G'RI IMPORT YO'LI)
-from telegram_bot.bot import handle_text_message, handle_voice_message
+app = FastAPI(title="Aziz AI Backend")
 
-# Bitta umumiy FastAPI app yaratamiz
-app = FastAPI(title="Aziz AI + Telegram Bot")
+# CORS (Telegram + browser)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# 1) AI backend routerlarini mount qilamiz
-app.mount("/api", ai_app)
-
-# 2) Telegram webhook endpoint
-@app.post("/webhook")
-async def webhook(request: Request):
-    update = await request.json()
-    message = update.get("message") or {}
-
-    if "text" in message:
-        await handle_text_message(message)
-    elif "voice" in message:
-        await handle_voice_message(message)
-
-    return {"ok": True}
-
-# Test endpoint
 @app.get("/")
-async def root():
-    return {"status": "Aziz AI + Telegram Bot Running ✔️"}
+def root():
+    return {"message": "Backend working ✔️"}
 
-# Local run (Railway ham shuni ishlatadi)
-if __name__ == "__main__":
-    uvicorn.run("server:app", host="0.0.0.0", port=8000)
+# === IMPORTANT ===
+# Chat → /api/chat
+# Audio → /api/audio
+# Planner → /api/planner
+# Profile → /api/profile
+# =================
+app.include_router(chat_router, prefix="/api/chat")
+app.include_router(audio_router, prefix="/api/audio")
+app.include_router(profile_router, prefix="/api/profile")
+app.include_router(planner_router, prefix="/api/planner")
+
+
+# Telegram webhook endpoint
+@app.post("/webhook")
+async def telegram_webhook(request: dict):
+    from telegram_bot.bot import process_update
+    return await process_update(request)
