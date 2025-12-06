@@ -10,7 +10,7 @@ from core.memory.router import router as memory_router
 from core.personality import personality_router
 from core.profiling.router import profiling_router
 from core.chat.router import chat_router
-from core.context.router import router as context_router
+from core.context.router import context_router
 from core.longterm.router import router as longterm_router
 from core.shortterm.router import router as short_router
 from core.office.router import router as office_router
