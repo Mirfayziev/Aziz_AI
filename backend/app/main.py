@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.app.routers.chat import router as chat_router
-from backend.app.routers.audio import router as audio_router
-from backend.app.routers.assistant import router as assistant_router
-from backend.app.routers.planner import router as planner_router
-from backend.app.routers.profile import router as profile_router
+from app.routers.chat import router as chat_router
+from app.routers.audio import router as audio_router
+from app.routers.assistant import router as assistant_router
+from app.routers.planner import router as planner_router
+from app.routers.profile import router as profile_router
 
 app = FastAPI(title="Aziz AI Backend")
 
