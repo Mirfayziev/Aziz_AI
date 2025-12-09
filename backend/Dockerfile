@@ -6,5 +6,5 @@ COPY . .
 
 RUN pip install --no-cache-dir -r app/requirements.txt
 
-# MUHIM O‘ZGARISH: shell format
+# Faqat shell format!
 CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
