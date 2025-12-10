@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Request
 
 from app.routers.chat import router as chat_router
 from app.routers.audio import router as audio_router
@@ -26,3 +27,9 @@ app.include_router(profile_router, prefix="/api/profile", tags=["Profile"])
 @app.get("/")
 async def root():
     return {"status": "Aziz AI backend is running ✔️"}
+   
+@app.post("/webhook")
+async def telegram_webhook(request: Request):
+    data = await request.json()
+    print("TELEGRAM UPDATE:", data)
+    return {"ok": True}
