@@ -42,9 +42,15 @@ async def get_realtime_info(text: str):
 
     async with httpx.AsyncClient(timeout=15) as client:
 
-        # WEATHER
-        if any(k in t for k in ["ob-havo", "obhavo", "weather", "harorat"]):
-    r = await client.get(f"{base}/weather", params={"city": "Tashkent"})
+       # =========================
+# WEATHER (REALTIME)
+# =========================
+if any(k in t for k in ["ob-havo", "obhavo", "weather", "harorat"]):
+
+    r = await client.get(
+        f"{base}/weather",
+        params={"city": "Tashkent"}
+    )
 
     if r.status_code == 200:
         w = r.json()
@@ -52,7 +58,7 @@ async def get_realtime_info(text: str):
         temp = w.get("temp", "Noma'lum")
         humidity = w.get("humidity", "Noma'lum")
         desc = w.get("description", "Noma'lum")
-        feels = w.get("feels_like", temp)  # ✅ agar yo‘q bo‘lsa temp bilan almashtiradi
+        feels = w.get("feels_like", temp)
 
         return (
             f"🌤 Toshkent ob-havosi (real vaqt):\n"
@@ -61,6 +67,9 @@ async def get_realtime_info(text: str):
             f"💧 Namlik: {humidity}%\n"
             f"📝 Holat: {desc}"
         )
+
+    else:
+        return "⚠️ Ob-havo serveridan javob olinmadi."
 
         # CURRENCY
         if any(k in t for k in ["dollar", "usd", "kurs", "valyuta"]):
