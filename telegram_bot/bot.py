@@ -2,11 +2,13 @@ import os
 import asyncio
 import aiohttp
 
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # ✅ TELEGRAM_TOKEN emas, shu bo‘lishi shart
-CHAT_URL = os.getenv("AZIZ_BACKEND_CHAT_URL")
-AUDIO_URL = os.getenv("AZIZ_BACKEND_AUDIO_URL")
+# ✅ Environment dan olinadi
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+CHAT_URL = os.getenv("AZIZ_BACKEND_CHAT_URL")   # ✅ /api/chat/chat bo‘lishi shart
+AUDIO_URL = os.getenv("AZIZ_BACKEND_AUDIO_URL")  # ixtiyoriy, bo‘lmasayam ishlaydi
 
 
+# ✅ Telegramga xabar yuborish
 async def send_message(chat_id: int, text: str):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
@@ -15,6 +17,7 @@ async def send_message(chat_id: int, text: str):
         await session.post(url, json=payload)
 
 
+# ✅ Bitta update (xabar)ni qayta ishlash
 async def process_update(update: dict):
     try:
         message = update.get("message") or update.get("edited_message")
@@ -23,34 +26,44 @@ async def process_update(update: dict):
 
         chat_id = message["chat"]["id"]
 
+        # ✅ /start
+        if "text" in message and message["text"] == "/start":
+            await send_message(chat_id, "✅ Aziz AI ishga tushdi!")
+            return
+
+        # ✅ Matnli xabar
         if "text" in message:
             user_text = message["text"]
 
-            # /start uchun oddiy javob
-            if user_text == "/start":
-                await send_message(chat_id, "✅ Aziz AI ishga tushdi!")
-                return
+            # ✅ BACKENDGA TO‘G‘RI YUBORISH (QUERY orqali)
+            params = {
+                "message": user_text,
+                "external_id": str(chat_id)
+            }
 
-            # Backend chat API ga yuboramiz
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     CHAT_URL,
-                    json={"message": user_text}
+                    params=params   # ✅ JSON EMAS, QUERY PARAMS
                 ) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        reply = data.get("reply") or data.get("response", "❌ AI javob bera olmadi")
+                        reply = data.get("reply") or data.get("response") or "❌ AI javob bermadi"
                     else:
                         reply = f"⚠️ Backend xatosi: {resp.status}"
 
             await send_message(chat_id, reply)
+            return
 
+        # ✅ OVOZ (agar audio URL bo‘lsa)
         if "voice" in message and AUDIO_URL:
             file_id = message["voice"]["file_id"]
             await send_message(chat_id, "🎤 Ovoz qabul qilindi, ishlanmoqda...")
 
+            params = {"file_id": file_id}
+
             async with aiohttp.ClientSession() as session:
-                async with session.post(AUDIO_URL, json={"file_id": file_id}) as resp:
+                async with session.post(AUDIO_URL, params=params) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         reply = data.get("text", "❌ Ovozdan matn olinmadi")
@@ -63,7 +76,7 @@ async def process_update(update: dict):
         print("process_update xatosi:", str(e))
 
 
-# ✅ ✅ ✅ LONG POLLING QISMI — ASOSIY YETISHMAYOTGAN JOY SHU EDI
+# ✅ ✅ ✅ ASOSIY LONG POLLING QISMI
 async def polling():
     offset = 0
     print("✅ Telegram bot polling boshlandi...")
@@ -71,7 +84,10 @@ async def polling():
     while True:
         try:
             url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
-            params = {"timeout": 30, "offset": offset}
+            params = {
+                "timeout": 30,
+                "offset": offset
+            }
 
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, params=params) as resp:
@@ -88,5 +104,11 @@ async def polling():
         await asyncio.sleep(1)
 
 
+# ✅ START
 if __name__ == "__main__":
+    if not TOKEN:
+        raise ValueError("❌ TELEGRAM_BOT_TOKEN yo‘q")
+    if not CHAT_URL:
+        raise ValueError("❌ AZIZ_BACKEND_CHAT_URL yo‘q")
+
     asyncio.run(polling())
