@@ -1,7 +1,9 @@
 from sqlalchemy.orm import Session
-from .openai_client import client, get_model_by_tier
-from ..models import User, Message
-from .memory_service import search_memories, get_or_create_user
+
+from app.services.openai_client import client, get_model_by_tier
+from app.models import User, Message
+from app.services.memory_service import search_memories, get_or_create_user
+
 
 SYSTEM_PROMPT = (
     "Siz 'Aziz AI' nomli shaxsiy yordamchisiz. "
@@ -9,6 +11,7 @@ SYSTEM_PROMPT = (
     "Profil ma'lumotlari, maqsadlari va kundalik odatlarini yodda tuting. "
     "Javoblaringiz qisqa, aniq va samimiy bo'lsin."
 )
+
 
 def create_chat_reply(
     db: Session,
@@ -18,7 +21,6 @@ def create_chat_reply(
 ) -> str:
     user = get_or_create_user(db, external_id)
 
-    # Oxirgi 10 ta xabarni tarix sifatida olamiz
     history = (
         db.query(Message)
         .filter_by(user_id=user.id)
@@ -28,16 +30,15 @@ def create_chat_reply(
     )
     history = list(reversed(history))
 
-    # Eslanmalar (vector memory) bilan kontekst
     memories = search_memories(db, external_id, message, top_k=3)
 
-    # OpenAI chat so'rovini tayyorlash
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+
     if memories:
         mem_text = "\n".join([f"- {m.content}" for m in memories])
         messages.append({
             "role": "system",
-            "content": f"Quyidagi foydali eslamalar: \n{mem_text}"
+            "content": f"Quyidagi foydali eslamalar:\n{mem_text}"
         })
 
     for m in history:
@@ -54,9 +55,9 @@ def create_chat_reply(
         model=model,
         messages=messages,
     )
+
     reply = chat.choices[0].message.content.strip()
 
-    # bazaga saqlash
     db.add(Message(user_id=user.id, role="user", content=message))
     db.add(Message(user_id=user.id, role="assistant", content=reply))
     db.commit()
