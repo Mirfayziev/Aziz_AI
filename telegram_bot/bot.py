@@ -10,8 +10,9 @@ import aiohttp
 # ---------------------------
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHAT_URL = os.getenv("AZIZ_BACKEND_CHAT_URL")   # masalan: https://azizai-production.up.railway.app/api/chat/chat
-AUDIO_URL = os.getenv("AZIZ_BACKEND_AUDIO_URL")  # masalan: https://azizai-production.up.railway.app/api/audio
+CHAT_URL = os.getenv("AZIZ_BACKEND_CHAT_URL")    # https://azizai-production.up.railway.app/api/chat/chat
+AUDIO_URL = os.getenv("AZIZ_BACKEND_AUDIO_URL") # https://azizai-production.up.railway.app/api/audio
+TTS_URL = os.getenv("AZIZ_BACKEND_TTS_URL")     # https://azizai-production.up.railway.app/api/tts
 
 if not TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN topilmadi")
@@ -44,6 +45,17 @@ async def tg_send_message(session: aiohttp.ClientSession, chat_id: int, text: st
     await session.post(f"{TELEGRAM_API}/sendMessage", json=payload)
 
 
+async def tg_send_voice(session: aiohttp.ClientSession, chat_id: int, audio_bytes: bytes) -> None:
+    form = aiohttp.FormData()
+    form.add_field("voice", audio_bytes, filename="reply.ogg", content_type="audio/ogg")
+
+    await session.post(
+        f"{TELEGRAM_API}/sendVoice",
+        data=form,
+        params={"chat_id": chat_id}
+    )
+
+
 async def tg_get_file_path(session: aiohttp.ClientSession, file_id: str) -> Optional[str]:
     async with session.get(f"{TELEGRAM_API}/getFile", params={"file_id": file_id}) as resp:
         data = await resp.json()
@@ -59,7 +71,7 @@ async def tg_download_file(session: aiohttp.ClientSession, file_path: str) -> by
 
 
 # ---------------------------
-# BACKEND CHAT (QUERY PARAMS BILAN)
+# BACKEND CHAT (QUERY PARAMS)
 # ---------------------------
 
 async def backend_chat(session: aiohttp.ClientSession, message: str, external_id: str) -> str:
@@ -82,7 +94,7 @@ async def backend_chat(session: aiohttp.ClientSession, message: str, external_id
 
 
 # ---------------------------
-# AUDIO (AGAR BOR BO'LSA)
+# AUDIO (Speech → Text)
 # ---------------------------
 
 async def backend_transcribe_audio(session: aiohttp.ClientSession, voice_bytes: bytes, filename: str = "voice.ogg") -> Optional[str]:
@@ -102,6 +114,28 @@ async def backend_transcribe_audio(session: aiohttp.ClientSession, voice_bytes: 
             return data.get("text") or data.get("transcript")
 
         return None
+
+
+# ---------------------------
+# TEXT → SPEECH (AI OVOZLI JAVOB)
+# ---------------------------
+
+async def backend_text_to_speech(session: aiohttp.ClientSession, text: str) -> Optional[bytes]:
+    if not TTS_URL:
+        return None
+
+    async with session.post(TTS_URL, params={"text": text}) as resp:
+        if resp.status != 200:
+            log.error("Backend TTS status: %s", resp.status)
+            return None
+
+        data = await resp.json()
+        audio_hex = data.get("audio_base64")
+
+        if not audio_hex:
+            return None
+
+        return bytes.fromhex(audio_hex)
 
 
 # ---------------------------
@@ -130,13 +164,24 @@ async def process_update(session: aiohttp.ClientSession, update: Dict[str, Any])
             )
             return
 
-        # Matnli xabar
+        # -----------------------
+        # MATNLI XABAR
+        # -----------------------
         if text and not text.startswith("/"):
             reply = await backend_chat(session, text, str(chat_id))
             await tg_send_message(session, chat_id, reply)
+
+            # ✅ AI OVOZLI JAVOB
+            if TTS_URL:
+                audio_reply = await backend_text_to_speech(session, reply)
+                if audio_reply:
+                    await tg_send_voice(session, chat_id, audio_reply)
+
             return
 
-        # Ovozli xabar
+        # -----------------------
+        # OVOZLI XABAR
+        # -----------------------
         if "voice" in message and AUDIO_URL:
             voice = message["voice"]
             file_id = voice["file_id"]
@@ -160,6 +205,12 @@ async def process_update(session: aiohttp.ClientSession, update: Dict[str, Any])
             reply = await backend_chat(session, text_from_audio, str(chat_id))
             await tg_send_message(session, chat_id, reply)
 
+            # ✅ AI OVOZLI JAVOB
+            if TTS_URL:
+                audio_reply = await backend_text_to_speech(session, reply)
+                if audio_reply:
+                    await tg_send_voice(session, chat_id, audio_reply)
+
     except Exception as e:
         log.exception("process_update xatosi: %s", e)
 
@@ -170,7 +221,7 @@ async def process_update(session: aiohttp.ClientSession, update: Dict[str, Any])
 
 async def polling() -> None:
     offset = 0
-    log.info("✅ Aziz AI Telegram Bot ishga tushdi...")
+    log.info("✅ Aziz AI Telegram Bot ishga tushdi (ovozli javob bilan)...")
 
     async with aiohttp.ClientSession() as session:
         while True:
