@@ -44,16 +44,23 @@ async def get_realtime_info(text: str):
 
         # WEATHER
         if any(k in t for k in ["ob-havo", "obhavo", "weather", "harorat"]):
-            r = await client.get(f"{base}/weather", params={"city": "Tashkent"})
-            if r.status_code == 200:
-                w = r.json()
-                return (
-                    f"🌤 Toshkent ob-havosi (real vaqt):\n"
-                    f"🌡 Harorat: {w['temp']}°C\n"
-                    f"🤍 His qilinadi: {w['feels_like']}°C\n"
-                    f"💧 Namlik: {w['humidity']}%\n"
-                    f"📝 Holat: {w['description']}"
-                )
+    r = await client.get(f"{base}/weather", params={"city": "Tashkent"})
+
+    if r.status_code == 200:
+        w = r.json()
+
+        temp = w.get("temp", "Noma'lum")
+        humidity = w.get("humidity", "Noma'lum")
+        desc = w.get("description", "Noma'lum")
+        feels = w.get("feels_like", temp)  # ✅ agar yo‘q bo‘lsa temp bilan almashtiradi
+
+        return (
+            f"🌤 Toshkent ob-havosi (real vaqt):\n"
+            f"🌡 Harorat: {temp}°C\n"
+            f"🤍 His qilinadi: {feels}°C\n"
+            f"💧 Namlik: {humidity}%\n"
+            f"📝 Holat: {desc}"
+        )
 
         # CURRENCY
         if any(k in t for k in ["dollar", "usd", "kurs", "valyuta"]):
