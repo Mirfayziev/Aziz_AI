@@ -1,19 +1,17 @@
-# app/services/chat.py
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
-from openai import OpenAI
-import os
+from app.db import get_db
+from app.services.chat_service import create_chat_reply   # ✅ SHU YER TUZATILDI
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+router = APIRouter()
 
-def chat_service(message: str) -> str:
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4.1-mini",
-            messages=[
-                {"role": "system", "content": "You are Aziz AI, a personal assistant."},
-                {"role": "user", "content": message}
-            ]
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"Chat service error: {str(e)}"
+
+@router.post("/chat")
+def chat_endpoint(
+    message: str,
+    external_id: str,
+    db: Session = Depends(get_db)
+):
+    reply = create_chat_reply(db, external_id, message)
+    return {"reply": reply}
