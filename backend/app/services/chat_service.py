@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.services.openai_client import client, get_model_by_tier
 from app.models import User, Message
 from app.services.memory_service import search_memories, get_or_create_user
-
+import httpx
 
 SYSTEM_PROMPT = (
     "Sen 'Aziz AI' nomli shaxsiy, mustaqil sun'iy intellektsan. "
@@ -29,6 +29,27 @@ SYSTEM_PROMPT = (
     "Sen Azizning shaxsiy digital hamrohi sifatida gapirasan."
 )
 
+async def get_realtime_info(text: str):
+    async with httpx.AsyncClient(timeout=15) as client:
+
+        if "dollar" in text or "kurs" in text:
+            r = await client.get("http://localhost:8000/api/realtime/currency")
+            return r.json()
+
+        if "bitcoin" in text or "kripto" in text:
+            r = await client.get("http://localhost:8000/api/realtime/crypto")
+            return r.json()
+
+        if "ob-havo" in text:
+            r = await client.get("http://localhost:8000/api/realtime/weather")
+            return r.json()
+
+        if "yangilik" in text:
+            r = await client.get("http://localhost:8000/api/realtime/news")
+            return r.json()
+
+    return None
+    
 def create_chat_reply(
     db: Session,
     external_id: str,
