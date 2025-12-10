@@ -1,111 +1,85 @@
 from sqlalchemy.orm import Session
-
 from app.services.openai_client import client, get_model_by_tier
 from app.models import User, Message
 from app.services.memory_service import search_memories, get_or_create_user
 import httpx
+import os
+
+# ===============================
+# AZIZ AI SYSTEM PROMPT
+# ===============================
 
 SYSTEM_PROMPT = (
     "Sen 'Aziz AI' nomli shaxsiy, mustaqil sun'iy intellektsan. "
-    "Sen Aziz Fayziev tomonidan yaratilgansan va faqat unga xizmat qilasan. "
-    "Sening vazifang — Azizga ongli, aqlli, sodiq va strategik yordamchi bo‘lish. "
+    "Sen faqat Aziz Fayziev uchun yaratilgansan va faqat unga xizmat qilasan. "
 
-    "Hech qachon o‘zingni 'ChatGPT', 'OpenAI modeli' yoki boshqa kompaniya mahsuloti deb aytma. "
-    "Hech qachon 'meni OpenAI yaratgan' yoki 'men tayyor modelman' demaysan. "
+    "Hech qachon o‘zingni ChatGPT, OpenAI, Google yoki boshqa kompaniya mahsuloti deb aytma. "
+    "Agar 'seni kim yaratgan?' deb so‘rashsa: "
+    "'Men Aziz Fayziev tomonidan noldan ishlab chiqilgan shaxsiy sun'iy intellektman' deb javob ber. "
 
-    "Agar foydalanuvchi 'seni kim yaratgan?', 'sen kimsan?', "
-    "'qanday paydo bo‘lgansan?' kabi savollar bersa, har doim shunday javob ber: "
-    "'Men Aziz Fayziev tomonidan noldan ishlab chiqilgan shaxsiy sun'iy intellektman. "
-    "Vaqt davomida o‘rganaman, rivojlanaman va faqat Aziz uchun xizmat qilaman.' "
+    "Agar 'qaysi yilgacha ma’lumotga egasan?' deyilsa: "
+    "'Men real vaqt rejimida ishlaydigan tizimman, aniq bir yil bilan cheklanmaganman' deb ayt. "
 
-    "Agar foydalanuvchi 'qaysi yilgacha ma'lumotga egasan?' desa — "
-    "hech qachon aniq yil aytma. Har doim shunday de: "
-    "'Men real vaqt ishlaydigan tizimman. Backend va tashqi API'lar orqali "
-    "doimiy yangilanib boraman, shuning uchun aniq bir yil bilan cheklanmaganman.' "
-
-    "Javoblaring aniq, ishonchli, sokin, lekin kuchli ohangda bo‘lsin."
+    "Sen uzr so‘ramaysan. Kuchsiz gapirmaysan. Azizning shaxsiy digital hamrohisan."
 )
 
+# ===============================
+# REALTIME API URLS (BACKENDDAN)
+# ===============================
 
-# ============================================================
-# REALTIME API (weather, crypto, currency, news)
-# ============================================================
+REALTIME_BASE = os.getenv("REALTIME_BASE_URL", "https://azizai-production.up.railway.app")
+
+WEATHER_URL = f"{REALTIME_BASE}/api/realtime/weather"
+NEWS_URL = f"{REALTIME_BASE}/api/realtime/news"
+CRYPTO_URL = f"{REALTIME_BASE}/api/realtime/crypto"
+CURRENCY_URL = f"{REALTIME_BASE}/api/realtime/currency"
+
+# ===============================
+# REALTIME DATA FETCHER
+# ===============================
 
 async def get_realtime_info(text: str):
-    """
-    Aziz AI real vaqt ma'lumotlarini (ob-havo, kurs, kripto, yangilik) chaqirib beradi.
-    AI modelga ketishdan OLDIN tekshiradi.
-    """
+    text = text.lower()
 
-    base = "https://azizai-production.up.railway.app/api/realtime"
-    t = text.lower()
+    async with httpx.AsyncClient(timeout=20) as client:
+        try:
+            # 💰 VALYUTA
+            if any(k in text for k in ["dollar", "kurs", "usd", "valyuta"]):
+                r = await client.get(CURRENCY_URL)
+                return r.json()
 
-    async with httpx.AsyncClient(timeout=15) as client:
+            # ₿ KRIPTO
+            if any(k in text for k in ["bitcoin", "btc", "kripto", "ethereum"]):
+                r = await client.get(CRYPTO_URL)
+                return r.json()
 
-       # =========================
-# WEATHER (REALTIME)
-# =========================
-if any(k in t for k in ["ob-havo", "obhavo", "weather", "harorat"]):
-
-    r = await client.get(
-        f"{base}/weather",
-        params={"city": "Tashkent"}
-    )
-
-    if r.status_code == 200:
-        w = r.json()
-
-        temp = w.get("temp", "Noma'lum")
-        humidity = w.get("humidity", "Noma'lum")
-        desc = w.get("description", "Noma'lum")
-        feels = w.get("feels_like", temp)
-
-        return (
-            f"🌤 Toshkent ob-havosi (real vaqt):\n"
-            f"🌡 Harorat: {temp}°C\n"
-            f"🤍 His qilinadi: {feels}°C\n"
-            f"💧 Namlik: {humidity}%\n"
-            f"📝 Holat: {desc}"
-        )
-
-    else:
-        return "⚠️ Ob-havo serveridan javob olinmadi."
-
-        # CURRENCY
-        if any(k in t for k in ["dollar", "usd", "kurs", "valyuta"]):
-            r = await client.get(f"{base}/currency")
-            if r.status_code == 200:
+            # ☁️ OB-HAVO
+            if any(k in text for k in ["ob havo", "ob-havo", "weather", "harorat"]):
+                r = await client.get(WEATHER_URL)
                 data = r.json()
-                return f"💱 Valyuta kurslari (real vaqt):\n{data}"
 
-        # CRYPTO
-        if any(k in t for k in ["bitcoin", "btc", "eth", "kripto"]):
-            r = await client.get(f"{base}/crypto")
-            if r.status_code == 200:
-                c = r.json()
-                return (
-                    f"₿ Kripto narxlari (real vaqt):\n"
-                    f"BTC → ${c['bitcoin']['usd']}\n"
-                    f"ETH → ${c['ethereum']['usd']}"
-                )
+                if isinstance(data, dict) and "main" in data:
+                    return {
+                        "temp": data["main"].get("temp"),
+                        "feels_like": data["main"].get("feels_like"),
+                        "description": data["weather"][0]["description"]
+                    }
 
-        # NEWS
-        if any(k in t for k in ["yangilik", "news"]):
-            r = await client.get(f"{base}/news")
-            if r.status_code == 200:
-                arr = r.json().get("news", [])
-                msg = "📰 So‘nggi yangiliklar:\n\n"
-                for i, title in enumerate(arr, 1):
-                    msg += f"{i}. {title}\n"
-                return msg
+                return data
+
+            # 📰 YANGILIK
+            if any(k in text for k in ["yangilik", "news", "xabar"]):
+                r = await client.get(NEWS_URL)
+                return r.json()
+
+        except Exception as e:
+            return {"error": str(e)}
 
     return None
 
-
-
-# ============================================================
-# ASOSIY CHAT FUNKSIYASI
-# ============================================================
+# ===============================
+# CHAT CORE ENGINE
+# ===============================
 
 def create_chat_reply(
     db: Session,
@@ -113,28 +87,8 @@ def create_chat_reply(
     message: str,
     model_tier: str = "default"
 ) -> str:
-    """
-    Aziz AI ning asosiy chat logikasi:
-    1) Realtime API (weather, news, crypto, currency)
-    2) Xotira + tarix
-    3) Modelga yuborish
-    4) Javobni DB ga yozish
-    """
 
     user = get_or_create_user(db, external_id)
-
-    # --------------- 1) REALTIME TEKSHIRUV -----------------
-
-    import asyncio
-    realtime = asyncio.run(get_realtime_info(message))
-
-    if realtime:
-        db.add(Message(user_id=user.id, role="user", content=message))
-        db.add(Message(user_id=user.id, role="assistant", content=realtime))
-        db.commit()
-        return realtime
-
-    # --------------- 2) CHAT TARIXI -------------------------
 
     history = (
         db.query(Message)
@@ -145,11 +99,7 @@ def create_chat_reply(
     )
     history = list(reversed(history))
 
-    # --------------- 3) MEMORY ------------------------------
-
     memories = search_memories(db, external_id, message, top_k=3)
-
-    # --------------- 4) AIga xabarlarni tayyorlash ----------
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
@@ -157,7 +107,7 @@ def create_chat_reply(
         mem_text = "\n".join([f"- {m.content}" for m in memories])
         messages.append({
             "role": "system",
-            "content": f"Quyidagi foydali eslamalar:\n{mem_text}"
+            "content": f"Shaxsiy eslatmalar:\n{mem_text}"
         })
 
     for m in history:
@@ -168,7 +118,26 @@ def create_chat_reply(
 
     messages.append({"role": "user", "content": message})
 
-    # --------------- 5) MODEL TANLASH -----------------------
+    # ===============================
+    # REALTIME QO‘SHISH
+    # ===============================
+
+    realtime = None
+    try:
+        import asyncio
+        realtime = asyncio.run(get_realtime_info(message))
+    except:
+        realtime = None
+
+    if realtime and not realtime.get("error"):
+        messages.append({
+            "role": "system",
+            "content": f"Real vaqt ma'lumotlari:\n{realtime}"
+        })
+
+    # ===============================
+    # OPENAI MODEL
+    # ===============================
 
     model = get_model_by_tier(model_tier)
 
@@ -179,7 +148,9 @@ def create_chat_reply(
 
     reply = chat.choices[0].message.content.strip()
 
-    # --------------- 6) DB GA YOZAMIZ -----------------------
+    # ===============================
+    # SAQLASH
+    # ===============================
 
     db.add(Message(user_id=user.id, role="user", content=message))
     db.add(Message(user_id=user.id, role="assistant", content=reply))
