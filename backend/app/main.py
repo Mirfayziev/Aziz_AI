@@ -8,6 +8,7 @@ from app.routers.assistant import router as assistant_router
 from app.routers.planner import router as planner_router
 from app.routers.profile import router as profile_router
 from app.routers.tts import router as tts_router
+from app.routers.realtime import router as realtime_router
 
 app = FastAPI(title="Aziz AI Backend")
 
@@ -25,6 +26,7 @@ app.include_router(assistant_router, prefix="/api/assistant", tags=["Assistant"]
 app.include_router(planner_router, prefix="/api/planner", tags=["Planner"])
 app.include_router(profile_router, prefix="/api/profile", tags=["Profile"])
 app.include_router(tts_router, prefix="/api/tts", tags=["TTS"])
+app.include_router(realtime_router, prefix="/api/realtime", tags=["Realtime"])
 
 @app.get("/")
 async def root():
