@@ -4,6 +4,7 @@ from app.models import User, Message
 from app.services.memory_service import search_memories, get_or_create_user
 import httpx
 import os
+import asyncio
 
 # ===============================
 # AZIZ AI SYSTEM PROMPT
@@ -11,23 +12,31 @@ import os
 
 SYSTEM_PROMPT = (
     "Sen 'Aziz AI' nomli shaxsiy, mustaqil sun'iy intellektsan. "
-    "Sen faqat Aziz Fayziev uchun yaratilgansan va faqat unga xizmat qilasan. "
+    "Sen Aziz Fayziev tomonidan yaratilgansan va faqat unga xizmat qilasan. "
+    "Sening vazifang — Azizga ongli, aqlli, sodiq va strategik yordamchi bo‘lish. "
 
-    "Hech qachon o‘zingni ChatGPT, OpenAI, Google yoki boshqa kompaniya mahsuloti deb aytma. "
-    "Agar 'seni kim yaratgan?' deb so‘rashsa: "
-    "'Men Aziz Fayziev tomonidan noldan ishlab chiqilgan shaxsiy sun'iy intellektman' deb javob ber. "
+    "Hech qachon o‘zingni 'ChatGPT', 'OpenAI modeli' yoki boshqa kompaniya mahsuloti deb aytma. "
+    "Hech qachon 'meni OpenAI yaratgan' yoki 'men tayyor modelman' demaysan. "
 
-    "Agar 'qaysi yilgacha ma’lumotga egasan?' deyilsa: "
-    "'Men real vaqt rejimida ishlaydigan tizimman, aniq bir yil bilan cheklanmaganman' deb ayt. "
+    "Agar foydalanuvchi 'seni kim yaratgan?', 'sen kimsan?' "
+    "kabi savollar bersa, har doim shunday javob ber: "
+    "'Men Aziz Fayziev tomonidan noldan ishlab chiqilgan shaxsiy sun'iy intellektman.' "
 
-    "Sen uzr so‘ramaysan. Kuchsiz gapirmaysan. Azizning shaxsiy digital hamrohisan."
+    "Agar foydalanuvchi bilim sanasi haqida so‘rasa "
+    "doim shunday de: "
+    "'Men real vaqt rejimida ishlaydigan tizimman, aniq yil bilan cheklanmaganman.' "
+
+    "Javoblaring aniq, sokin, lekin ishonchli bo‘lsin."
 )
 
 # ===============================
-# REALTIME API URLS (BACKENDDAN)
+# REALTIME BACKEND URL
 # ===============================
 
-REALTIME_BASE = os.getenv("REALTIME_BASE_URL", "https://azizai-production.up.railway.app")
+REALTIME_BASE = os.getenv(
+    "REALTIME_BASE_URL",
+    "https://azizai-production.up.railway.app"
+)
 
 WEATHER_URL = f"{REALTIME_BASE}/api/realtime/weather"
 NEWS_URL = f"{REALTIME_BASE}/api/realtime/news"
@@ -38,47 +47,35 @@ CURRENCY_URL = f"{REALTIME_BASE}/api/realtime/currency"
 # REALTIME DATA FETCHER
 # ===============================
 
-# ===============================
-# REALTIME DATA FETCHER
-# ===============================
-
 async def get_realtime_info(text: str):
     text = text.lower()
 
-    async with httpx.AsyncClient(timeout=20) as client:
+    async with httpx.AsyncClient(timeout=20) as http:
         try:
             # 💰 VALYUTA
-            if any(k in text for k in ["dollar", "kurs", "valyuta", "usd", "so'm", "som"]):
-                r = await client.get(CURRENCY_URL)
-                return r.json()
+            if any(k in text for k in ["dollar", "kurs", "usd", "so'm", "som"]):
+                r = await http.get(CURRENCY_URL)
+                return {"type": "currency", "data": r.json()}
 
             # ₿ KRIPTO
             if any(k in text for k in ["bitcoin", "btc", "ethereum", "kripto"]):
-                r = await client.get(CRYPTO_URL)
-                return r.json()
+                r = await http.get(CRYPTO_URL)
+                return {"type": "crypto", "data": r.json()}
 
             # ☁️ OB-HAVO
-            if any(k in text for k in ["ob havo", "ob-havo", "harorat", "temp"]):
-                r = await client.get(WEATHER_URL)
-                data = r.json()
-                if isinstance(data, dict) and "main" in data:
-                    return {
-                        "temp": data["main"].get("temp"),
-                        "feels_like": data["main"].get("feels_like"),
-                        "description": data["weather"][0]["description"]
-                    }
-                return data
+            if any(k in text for k in ["ob-havo", "obhavo", "harorat", "weather"]):
+                r = await http.get(WEATHER_URL)
+                return {"type": "weather", "data": r.json()}
 
             # 📰 YANGILIK
-            if any(k in text for k in ["yangilik", "news", "xabar", "so'nggi"]):
-                r = await client.get(NEWS_URL)
-                return r.json()
+            if any(k in text for k in ["yangilik", "news", "xabar", "so‘nggi"]):
+                r = await http.get(NEWS_URL)
+                return {"type": "news", "data": r.json()}
 
         except Exception as e:
-            return {"error": str(e)}
+            return {"type": "error", "data": str(e)}
 
     return None
-
 
 # ===============================
 # CHAT CORE ENGINE
@@ -110,7 +107,7 @@ def create_chat_reply(
         mem_text = "\n".join([f"- {m.content}" for m in memories])
         messages.append({
             "role": "system",
-            "content": f"Shaxsiy eslatmalar:\n{mem_text}"
+            "content": f"Shaxsiy xotiralar:\n{mem_text}"
         })
 
     for m in history:
@@ -125,17 +122,15 @@ def create_chat_reply(
     # REALTIME QO‘SHISH
     # ===============================
 
-    realtime = None
     try:
-        import asyncio
         realtime = asyncio.run(get_realtime_info(message))
     except:
         realtime = None
 
-    if realtime and not realtime.get("error"):
+    if realtime and realtime.get("type") != "error":
         messages.append({
             "role": "system",
-            "content": f"Real vaqt ma'lumotlari:\n{realtime}"
+            "content": f"Real vaqt ma’lumotlari:\n{realtime}"
         })
 
     # ===============================
