@@ -124,18 +124,29 @@ async def backend_text_to_speech(session: aiohttp.ClientSession, text: str) -> O
     if not TTS_URL:
         return None
 
-    async with session.post(TTS_URL, params={"text": text}) as resp:
-        if resp.status != 200:
-            log.error("Backend TTS status: %s", resp.status)
-            return None
+    async with session.post(
+    TTS_URL,
+    json={"text": text},          # <-- MUHIM! params emas, JSON yuboriladi
+    headers={"Content-Type": "application/json"}
+) as resp:
 
-        data = await resp.json()
-        audio_hex = data.get("audio_base64")
+    if resp.status != 200:
+        log.error("Backend TTS status: %s", resp.status)
+        return None
 
-        if not audio_hex:
-            return None
+    # Backend javobini JSON shaklda olamiz
+    data = await resp.json()
 
-        return bytes.fromhex(audio_hex)
+    # audio_base64 backenddan keladi
+    audio_hex = data.get("audio_base64")
+
+    if not audio_hex:
+        log.error("Backend TTS empty audio")
+        return None
+
+    # Hex → Bytes (Telegramga yuborish uchun tayyor)
+    return bytes.fromhex(audio_hex)
+
 
 
 # ---------------------------
