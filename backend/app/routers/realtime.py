@@ -1,56 +1,58 @@
-from fastapi import APIRouter
-import httpx
-import os
+# app/services/realtime.py
 
-router = APIRouter()
+import os
+import httpx
+from fastapi import APIRouter
+
+router = APIRouter(prefix="/api/realtime")
 
 WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 
+# =======================
+# 1) OB-HAVO
+# =======================
 
 @router.get("/weather")
 async def weather(city: str = "Tashkent"):
     if not WEATHER_API_KEY:
         return {"error": "WEATHER_API_KEY yo'q"}
 
-    url = "https://api.openweathermap.org/data/2.5/weather"
-    params = {
-        "q": city,
-        "appid": WEATHER_API_KEY,
-        "units": "metric",
-        "lang": "uz"
-    }
+    url = (
+        f"https://api.openweathermap.org/data/2.5/weather"
+        f"?q={city}&appid={WEATHER_API_KEY}&units=metric&lang=uz"
+    )
 
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(url, params=params)
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url)
+        return r.json()
 
-    if r.status_code != 200:
-        return {"error": "OpenWeather API xato javob berdi", "status": r.status_code}
-
-    data = r.json()
-
-    return {
-        "city": city,
-        "temp": data["main"]["temp"],
-        "humidity": data["main"]["humidity"],
-        "description": data["weather"][0]["description"]
-    }
-
+# =======================
+# 2) DOLLAR / EURO / RUB KURSLARI
+# =======================
 
 @router.get("/currency")
 async def currency():
-    url = "https://api.exchangerate.host/latest"
+    url = "https://v6.exchangerate-api.com/v6/latest/USD"
 
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient() as client:
         r = await client.get(url)
+        data = r.json()
 
-    if r.status_code != 200:
-        return {"error": "Currency API xato javob berdi"}
+        if "conversion_rates" not in data:
+            return {"error": "Kurs API ishlamadi"}
 
-    data = r.json()
+        rates = data["conversion_rates"]
 
-    return data.get("rates", {})
+        return {
+            "USD_UZS": round(rates.get("UZS", 0)),
+            "EUR_UZS": round(rates.get("UZS", 0) * 0.93),
+            "RUB_UZS": round(rates.get("UZS", 0) * 0.011)
+        }
 
+# =======================
+# 3) BITCOIN / ETH NARXLARI
+# =======================
 
 @router.get("/crypto")
 async def crypto():
@@ -60,31 +62,40 @@ async def crypto():
         "vs_currencies": "usd"
     }
 
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient() as client:
         r = await client.get(url, params=params)
+        data = r.json()
 
-    if r.status_code != 200:
-        return {"error": "Crypto API xato berdi"}
+        return {
+            "BTC_USD": data.get("bitcoin", {}).get("usd"),
+            "ETH_USD": data.get("ethereum", {}).get("usd"),
+        }
 
-    return r.json()
-
+# =======================
+# 4) SO‘NGGI YANGILIKLAR
+# =======================
 
 @router.get("/news")
 async def news():
     if not NEWS_API_KEY:
         return {"error": "NEWS_API_KEY yo'q"}
 
-    url = "https://newsapi.org/v2/top-headlines"
-    params = {
-        "country": "us",
-        "pageSize": 5,
-        "apiKey": NEWS_API_KEY
-    }
+    url = (
+        f"https://newsapi.org/v2/top-headlines?"
+        f"country=us&pageSize=5&apiKey={NEWS_API_KEY}"
+    )
 
-    async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(url, params=params)
+    async with httpx.AsyncClient() as client:
+        r = await client.get(url)
+        data = r.json()
 
-    if r.status_code != 200:
-        return {"error": "News API xato berdi"}
+        articles = data.get("articles", [])
 
-    return r.json()
+        return [
+            {
+                "title": a.get("title"),
+                "source": a.get("source", {}).get("name"),
+                "url": a.get("url")
+            }
+            for a in articles
+        ]
