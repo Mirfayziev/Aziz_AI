@@ -26,7 +26,7 @@ app.include_router(assistant_router, prefix="/api/assistant", tags=["Assistant"]
 app.include_router(planner_router, prefix="/api/planner", tags=["Planner"])
 app.include_router(profile_router, prefix="/api/profile", tags=["Profile"])
 app.include_router(tts_router, prefix="/api/tts", tags=["TTS"])
-app.include_router(realtime_router, prefix="/api/realtime", tags=["Realtime"])
+app.include_router(realtime_router, prefix="/api/realtime")
 
 @app.get("/")
 async def root():
