@@ -38,37 +38,39 @@ CURRENCY_URL = f"{REALTIME_BASE}/api/realtime/currency"
 # REALTIME DATA FETCHER
 # ===============================
 
+# ===============================
+# REALTIME DATA FETCHER
+# ===============================
+
 async def get_realtime_info(text: str):
     text = text.lower()
 
     async with httpx.AsyncClient(timeout=20) as client:
         try:
             # 💰 VALYUTA
-            if any(k in text for k in ["dollar", "kurs", "usd", "valyuta"]):
+            if any(k in text for k in ["dollar", "kurs", "valyuta", "usd", "so'm", "som"]):
                 r = await client.get(CURRENCY_URL)
                 return r.json()
 
             # ₿ KRIPTO
-            if any(k in text for k in ["bitcoin", "btc", "kripto", "ethereum"]):
+            if any(k in text for k in ["bitcoin", "btc", "ethereum", "kripto"]):
                 r = await client.get(CRYPTO_URL)
                 return r.json()
 
             # ☁️ OB-HAVO
-            if any(k in text for k in ["ob havo", "ob-havo", "weather", "harorat"]):
+            if any(k in text for k in ["ob havo", "ob-havo", "harorat", "temp"]):
                 r = await client.get(WEATHER_URL)
                 data = r.json()
-
                 if isinstance(data, dict) and "main" in data:
                     return {
                         "temp": data["main"].get("temp"),
                         "feels_like": data["main"].get("feels_like"),
                         "description": data["weather"][0]["description"]
                     }
-
                 return data
 
             # 📰 YANGILIK
-            if any(k in text for k in ["yangilik", "news", "xabar"]):
+            if any(k in text for k in ["yangilik", "news", "xabar", "so'nggi"]):
                 r = await client.get(NEWS_URL)
                 return r.json()
 
@@ -76,6 +78,7 @@ async def get_realtime_info(text: str):
             return {"error": str(e)}
 
     return None
+
 
 # ===============================
 # CHAT CORE ENGINE
