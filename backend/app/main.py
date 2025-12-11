@@ -24,7 +24,7 @@ app.add_middleware(
 )
 
 # Routers
-app.include_router(chat_router, prefix="/api/chat", tags=["Chat"])
+app.include_router(chat_router)
 app.include_router(audio_router, prefix="/api/audio", tags=["Audio"])
 app.include_router(assistant_router, prefix="/api/assistant", tags=["Assistant"])
 app.include_router(planner_router, prefix="/api/planner", tags=["Planner"])
