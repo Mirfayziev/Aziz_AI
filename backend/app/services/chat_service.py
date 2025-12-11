@@ -1,121 +1,73 @@
-import httpx
-from datetime import datetime
-from app.models.daily_routine import DailyRoutine
-from app.services.config import WEATHER_API_KEY, NEWS_API_KEY
+# app/services/chat_service.py
+import asyncio
+import aiohttp
+from sqlalchemy.orm import Session
+from app.services.config import OPENAI_API_KEY
 
 
-async def get_weather(city: str):
-    """OpenWeatherMap orqali real ob-havo olish"""
-    if not WEATHER_API_KEY:
-        return "⚠️ Ob-havo API kaliti mavjud emas."
+# -----------------------------------------
+# REALTIME MA'LUMOT FUNKSIYASI (Ixtiyoriy bo‘lim)
+# -----------------------------------------
+async def get_realtime_info(message: str):
+    message_lower = message.lower()
 
-    url = f"https://api.openweathermap.org/data/2.5/weather"
-    params = {"q": city, "appid": WEATHER_API_KEY, "units": "metric", "lang": "uz"}
+    if any(k in message_lower for k in ["ob-havo", "havo", "weather"]):
+        return "Hozirgi ob-havo bo‘yicha real ma’lumot olish xizmati ulanmagan."
 
-    async with httpx.AsyncClient() as client:
-        r = await client.get(url, params=params)
+    if any(k in message_lower for k in ["yangilik", "news"]):
+        return "So‘nggi yangiliklarni olish funksiyasi faol emas."
 
-    if r.status_code != 200:
-        return "⚠️ Ob-havo ma'lumotini olishda xatolik."
-
-    data = r.json()
-    temp = data["main"]["temp"]
-    feels = data["main"]["feels_like"]
-    desc = data["weather"][0]["description"]
-
-    return f"{city} shahrida hozir {temp}°C, sezilishi {feels}°C. Havo: {desc}."
+    return None
 
 
-async def get_latest_news():
-    """NewsAPI orqali so‘nggi yangiliklarni olish"""
-    if not NEWS_API_KEY:
-        return "⚠️ Yangiliklar API kaliti mavjud emas."
-
-    url = "https://newsapi.org/v2/top-headlines"
-    params = {"country": "us", "apiKey": NEWS_API_KEY, "pageSize": 5}
-
-    async with httpx.AsyncClient() as client:
-        r = await client.get(url, params=params)
-
-    if r.status_code != 200:
-        return "⚠️ Yangiliklarni olishda xatolik yuz berdi."
-
-    articles = r.json().get("articles", [])
-    if not articles:
-        return "⚠️ Yangiliklar topilmadi."
-
-    text = "📰 So‘nggi yangiliklar:\n\n"
-    for a in articles:
-        text += f"- {a['title']} ({a['source']['name']})\n"
-
-    return text
-
-
-def analyze_daily_routine(routine: DailyRoutine) -> str:
-    """Kun tartibini chuqur tahlil qilish va taklif berish"""
-
-    score = 0
-    tips = []
-
-    # Uyg‘onish
-    if routine.wake_time > 8:
-        tips.append("• Ertaroq uyg‘onish samaradorlikni oshiradi.")
-    else:
-        score += 1
-
-    # Nonushta
-    if not routine.breakfast:
-        tips.append("• Nonushta qilmaslik energiya pasayishiga olib keladi.")
-
-    # Uyqu
-    if routine.sleep_hours < 6:
-        tips.append("• Kam uxlayapsiz, kamida 7-8 soat tavsiya etiladi.")
-    else:
-        score += 1
-
-    # Ish balansi
-    if routine.work_hours > 10:
-        tips.append("• Juda ko‘p ishlayapsiz, mental charchash xavfi yuqori.")
-    else:
-        score += 1
-
-    # Sport
-    if not routine.exercise:
-        tips.append("• Kuniga 10–20 min yurish yoki yengil mashqlar qo‘shing.")
-
-    result = f"📊 Kun tartibi bo‘yicha tahlil natijasi: {score}/4\n"
-    if tips:
-        result += "\nTavsiya va takliflar:\n" + "\n".join(tips)
-
-    return result
-
-
-async def create_chat_reply(db, external_id: str, message: str):
+# -----------------------------------------
+# ASOSIY JAVOB GENERATSIYASI
+# -----------------------------------------
+async def _generate_reply(message: str, personality: str = "") -> str:
     """
-    Asosiy AI javob generatsiya qiluvchi funksiyaga
-    real-time modul (weather/news/daily analysis) ni qo‘shib ketamiz.
+    AI’dan tekst javob yaratish (async)
+    """
+    import openai
+    openai.api_key = OPENAI_API_KEY
+
+    prompt = f"""
+Sen — Aziz AI. Professional yordamchi.
+Foydalanuvchi shaxsiy profili:
+{personality}
+
+Xabar: {message}
+Javobni samimiy, aniq va qisqa qilib yoz.
+"""
+
+    completion = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    return completion.choices[0].message["content"]
+
+
+# -----------------------------------------
+# SYNC FUNKSIYA — Router shu funksiyani chaqiradi
+# -----------------------------------------
+def create_chat_reply(db: Session, external_id: str, message: str) -> str:
+    """
+    Bu funksiya FastAPI router tomonidan chaqiriladi.
+    Ichida async kodni boshqarish uchun asyncio.run ishlatiladi.
     """
 
-    msg = message.lower().strip()
+    # 1) Realtime tekshiruv
+    try:
+        realtime = asyncio.run(get_realtime_info(message))
+        if realtime:
+            return realtime
+    except Exception as e:
+        print("Realtime xato:", e)
 
-    # OB-HAVO BLOKI
-    if any(x in msg for x in ["ob havo", "havo", "weather"]):
-        return await get_weather("Tashkent")
-
-    # YANGILIKLAR BLOKI
-    if any(x in msg for x in ["yangilik", "news", "so‘nggi yangilik"]):
-        return await get_latest_news()
-
-    # KUN TARTIBI TАHLILI BLOKI
-    if "kun tartibi" in msg or "routine" in msg:
-        sample = DailyRoutine(
-            wake_time=8,
-            breakfast=False,
-            work_hours=10,
-            sleep_hours=5,
-            exercise=False
-        )
-        return analyze_daily_routine(sample)
-
-    # 🔥 ASOSIY AI JAVOBI (hozircha mock — sizning backend AI bilan ulaysiz)
-    return f"🤖 AI javobi: {message}"
+    # 2) AI javob yaratish
+    try:
+        reply = asyncio.run(_generate_reply(message))
+        return reply
+    except Exception as e:
+        print("AI xato:", e)
+        return "⚠️ Javob yaratishda xatolik yuz berdi."
