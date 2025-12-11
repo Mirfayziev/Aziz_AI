@@ -1,21 +1,73 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-from .config import get_settings
+import sqlite3
+from contextlib import closing
 
-settings = get_settings()
+DB_PATH = "azizai.db"
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    connect_args={"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {},
-)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-Base = declarative_base()
+def get_conn():
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-def get_db():
-    from sqlalchemy.orm import Session
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+
+def init_db():
+    with closing(get_conn()) as conn:
+        cur = conn.cursor()
+
+        # User context (memory / state)
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS user_context (
+            user_id TEXT PRIMARY KEY,
+            context TEXT
+        )
+        """)
+
+        # Chat history
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS chat_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            role TEXT,
+            message TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+
+        conn.commit()
+
+
+# ================================
+#  MEMORY FUNCTIONS
+# ================================
+
+def get_user_context(user_id: str) -> str:
+    with closing(get_conn()) as conn:
+        cur = conn.cursor()
+        row = cur.execute("SELECT context FROM user_context WHERE user_id=?", (user_id,)).fetchone()
+        return row["context"] if row else ""
+
+
+def save_user_context(user_id: str, context: str):
+    with closing(get_conn()) as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO user_context (user_id, context)
+            VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET context=excluded.context
+        """, (user_id, context))
+        conn.commit()
+
+
+# ================================
+#  CHAT HISTORY
+# ================================
+
+def save_ai_message(user_id: str, role: str, message: str):
+    with closing(get_conn()) as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO chat_history (user_id, role, message)
+            VALUES (?, ?, ?)
+        """, (user_id, role, message))
+        conn.commit()
+
