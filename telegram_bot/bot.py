@@ -1,209 +1,128 @@
 import os
+import requests
+import json
 import logging
 from fastapi import FastAPI, Request
-import aiohttp
-import base64
+from pydantic import BaseModel
+from typing import Optional
 
-# ==========================
-#   ENV VARIABLES
-# ==========================
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+# ===== ENV VARIABLES =====
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+OPENAI_KEY = os.getenv("AZIZAI_KEY")
 
-CHAT_URL = os.getenv("AZIZ_BACKEND_CHAT_URL")        # text chat
-AUDIO_URL = os.getenv("AZIZ_BACKEND_AUDIO_URL")      # speech-to-text + tts
+TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
-NEWS_API_KEY = os.getenv("NEWS_API_KEY")
-CURRENCY_API_KEY = os.getenv("CURRENCY_API_KEY")
-
-TELEGRAM_API = f"https://api.telegram.org/bot{TOKEN}"
-FILE_API = f"https://api.telegram.org/file/bot{TOKEN}"
-
-log = logging.getLogger("aziz_ai_bot")
 app = FastAPI()
+log = logging.getLogger("bot")
+log.setLevel(logging.INFO)
 
-# =====================================================
-#  UNIVERSAL SEND FUNCTIONS
-# =====================================================
+# -------------------------------
+# Telegram helper sender
+# -------------------------------
+def send_message(chat_id, text):
+    url = f"{TELEGRAM_API}/sendMessage"
+    payload = {"chat_id": chat_id, "text": text}
+    requests.post(url, json=payload)
 
-async def send_text(session, chat_id, text):
-    """Send text message to Telegram"""
-    await session.post(
-        f"{TELEGRAM_API}/sendMessage",
-        json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
+def send_voice(chat_id, audio_bytes):
+    url = f"{TELEGRAM_API}/sendVoice"
+    files = {"voice": ("audio.ogg", audio_bytes, "audio/ogg")}
+    data = {"chat_id": chat_id}
+    requests.post(url, data=data, files=files)
+
+# -------------------------------
+# Weather API
+# -------------------------------
+def get_weather(city="Tashkent"):
+    try:
+        r = requests.get(f"https://wttr.in/{city}?format=3")
+        return r.text
+    except:
+        return "Ob-havo xizmatida xatolik."
+
+# -------------------------------
+# Currency API
+# -------------------------------
+def get_currency():
+    try:
+        r = requests.get("https://cbu.uz/ru/arkhiv-kursov-valyut/json/")
+        data = r.json()
+        usd = next(x for x in data if x["Ccy"] == "USD")["Rate"]
+        eur = next(x for x in data if x["Ccy"] == "EUR")["Rate"]
+        rub = next(x for x in data if x["Ccy"] == "RUB")["Rate"]
+        return f"USD: {usd} UZS\nEUR: {eur} UZS\nRUB: {rub} UZS"
+    except:
+        return "Valyuta kurslarini olishda xatolik."
+
+# -------------------------------
+# News API (Google News)
+# -------------------------------
+def get_news():
+    try:
+        r = requests.get("https://newsdata.io/api/1/news?apikey=pub_54087432b0dc044bfc5&country=uz")
+        news = r.json()["results"][:5]
+        text = "SO‘NGI YANGILIKLAR:\n\n"
+        for n in news:
+            text += f"- {n['title']}\n"
+        return text
+    except:
+        return "Yangiliklarni olishda xatolik."
+
+# -------------------------------
+# Voice generation (OpenAI)
+# -------------------------------
+def generate_voice(text):
+    import openai
+    openai.api_key = OPENAI_KEY
+
+    audio = openai.audio.speech.create(
+        model="gpt-4o-mini-tts",
+        voice="alloy",
+        input=text
     )
+    return audio.read()
 
-async def send_voice(session, chat_id, file_bytes):
-    """Send voice file (.ogg)"""
-    data = aiohttp.FormData()
-    data.add_field("chat_id", str(chat_id))
-    data.add_field("voice", file_bytes, filename="reply.ogg")
-    await session.post(f"{TELEGRAM_API}/sendVoice", data=data)
-
-# =====================================================
-#  1) WEATHER (OB-HAVO)
-# =====================================================
-
-async def get_weather(city):
-    url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={WEATHER_API_KEY}&units=metric&lang=uz"
-    async with aiohttp.ClientSession() as session:
-        resp = await session.get(url)
-        data = await resp.json()
-
-    if data.get("cod") != 200:
-        return "❌ Shahar topilmadi."
-
-    temp = data["main"]["temp"]
-    hum = data["main"]["humidity"]
-    desc = data["weather"][0]["description"]
-
-    return f"""
-🌤 *{city.title()} bo‘yicha ob-havo:*
-
-• Temperatura: *{temp}°C*
-• Namlik: *{hum}%*
-• Holat: *{desc}*
-"""
-
-# =====================================================
-#  2) NEWS (YANGILIKLAR)
-# =====================================================
-
-async def get_news():
-    url = f"https://newsapi.org/v2/top-headlines?country=us&apiKey={NEWS_API_KEY}"
-
-    async with aiohttp.ClientSession() as session:
-        resp = await session.get(url)
-        data = await resp.json()
-
-    articles = data.get("articles", [])[:5]
-
-    if not articles:
-        return "Yangiliklar topilmadi."
-
-    txt = "📰 *So‘nggi yangiliklar:*\n\n"
-    for n in articles:
-        txt += f"• {n['title']}\n"
-
-    return txt
-
-# =====================================================
-#  3) CURRENCY (VALYUTA)
-# =====================================================
-
-async def get_currency():
-    url = f"https://v6.exchangerate-api.com/v6/{CURRENCY_API_KEY}/latest/USD"
-    async with aiohttp.ClientSession() as session:
-        resp = await session.get(url)
-        data = await resp.json()
-
-    uzs = data["conversion_rates"]["UZS"]
-    eur = data["conversion_rates"]["EUR"]
-    rub = data["conversion_rates"]["RUB"]
-
-    return f"""
-💵 *Bugungi kurslar:*
-
-1 USD = {uzs:,} UZS  
-1 EUR = {eur:.2f} USD  
-1 RUB = {rub:.2f} USD
-"""
-
-# =====================================================
-#  WEBHOOK
-# =====================================================
+# ==============================================
+# TELEGRAM WEBHOOK ENDPOINT
+# ==============================================
+class TelegramUpdate(BaseModel):
+    update_id: int
+    message: Optional[dict] = None
 
 @app.post("/webhook")
-async def webhook(request: Request):
-    data = await request.json()
+async def telegram_webhook(update: TelegramUpdate):
+    log.info(f"Update: {update.dict()}")
 
-    if "message" not in data:
+    if not update.message:
         return {"ok": True}
 
-    msg = data["message"]
-    chat_id = msg["chat"]["id"]
+    chat_id = update.message["chat"]["id"]
+    msg = update.message.get("text", "")
 
-    async with aiohttp.ClientSession() as session:
+    # ----- COMMAND HANDLING -----
+    if msg == "/start":
+        send_message(chat_id, "Assalomu alaykum! Men Aziz AI botiman.")
+        return {"ok": True}
 
-        # ==========================
-        #  TEXT MESSAGE
-        # ==========================
-        if "text" in msg:
-            text = msg["text"].lower()
+    if msg.lower() == "ob-havo":
+        send_message(chat_id, get_weather())
+        return {"ok": True}
 
-            # ↓↓↓ CUSTOM COMMANDS ↓↓↓
+    if msg.lower() == "valyuta":
+        send_message(chat_id, get_currency())
+        return {"ok": True}
 
-            if text.startswith("/weather"):
-                city = text.replace("/weather", "").strip() or "tashkent"
-                reply = await get_weather(city)
-                await send_text(session, chat_id, reply)
-                return {"ok": True}
+    if msg.lower() == "yangilik":
+        send_message(chat_id, get_news())
+        return {"ok": True}
 
-            if text.startswith("/news"):
-                reply = await get_news()
-                await send_text(session, chat_id, reply)
-                return {"ok": True}
+    if msg.lower() == "audio":
+        voice = generate_voice("Salom, men Aziz AI botman. Ovozli javob tayyor!")
+        send_voice(chat_id, voice)
+        return {"ok": True}
 
-            if text.startswith("/kurs"):
-                reply = await get_currency()
-                await send_text(session, chat_id, reply)
-                return {"ok": True}
-
-            if text.startswith("/start"):
-                await send_text(session, chat_id,
-                                "Salom! Men Aziz AI telegram yordamchisiman.\n\n"
-                                "Buyruqlar:\n"
-                                "• /weather <shahar>\n"
-                                "• /news\n"
-                                "• /kurs\n"
-                                "Shunchaki xabar yuboring — men javob beraman.")
-                return {"ok": True}
-
-            # ========== AI CHAT BACKEND ==========
-            payload = {
-                "message": text,
-                "external_id": str(chat_id)
-            }
-
-            async with session.post(CHAT_URL, json=payload) as resp:
-                backend = await resp.json()
-
-            reply = backend.get("reply", "Xatolik. Javob yo‘q.")
-            await send_text(session, chat_id, reply)
-            return {"ok": True}
-
-        # ==========================
-        #  VOICE MESSAGE
-        # ==========================
-        if "voice" in msg:
-            file_id = msg["voice"]["file_id"]
-
-            # Get file path
-            file_info = await session.get(f"{TELEGRAM_API}/getFile?file_id={file_id}")
-            file_json = await file_info.json()
-            fpath = file_json["result"]["file_path"]
-
-            # Download file
-            file_bin = await session.get(f"{FILE_API}/{fpath}")
-            audio_bytes = await file_bin.read()
-
-            # Send to AI AUDIO backend
-            form = aiohttp.FormData()
-            form.add_field("external_id", str(chat_id))
-            form.add_field("file", audio_bytes, filename="audio.ogg", content_type="audio/ogg")
-
-            async with session.post(AUDIO_URL, data=form) as resp:
-                backend = await resp.json()
-
-            # Send transcribed text
-            if backend.get("text"):
-                await send_text(session, chat_id, backend["text"])
-
-            # Send AI-generated audio
-            if backend.get("audio"):
-                decoded = base64.b64decode(backend["audio"])
-                await send_voice(session, chat_id, decoded)
-
-            return {"ok": True}
+    # Default reply
+    reply = f"Siz yozdingiz: {msg}"
+    send_message(chat_id, reply)
 
     return {"ok": True}
