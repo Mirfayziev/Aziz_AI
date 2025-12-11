@@ -1,40 +1,40 @@
+from openai import OpenAI
 from sqlalchemy.orm import Session
-from app.models.chat import ChatMessage
-from app.core.ai_client import client
+from app.db import get_user_context, save_user_context, save_ai_message
+from app.config import OPENAI_API_KEY
 
-def create_chat_reply(db: Session, external_id: str, message: str):
+client = OpenAI(api_key=OPENAI_API_KEY)
 
-    history = db.query(ChatMessage).filter(
-        ChatMessage.external_id == external_id
-    ).order_by(ChatMessage.timestamp).all()
 
-    messages = [{"role": "system", "content": "You are Aziz AI."}]
+def create_chat_reply(db: Session, external_id: str, message: str) -> str:
+    """
+    Foydalanuvchi xabariga AI javob yaratadi.
+    external_id — Telegram foydalanuvchi ID
+    message — foydalanuvchi xabari
+    """
 
-    for msg in history:
-        messages.append({"role": msg.role, "content": msg.content})
+    # 1) Eski kontekstni olish
+    previous_context = get_user_context(db, external_id)
+
+    messages = []
+    if previous_context:
+        messages.append({"role": "system", "content": previous_context})
 
     messages.append({"role": "user", "content": message})
 
-    response = client.responses.create(
-        model="gpt-5.1",
+    # 2) ChatGPT dan javob
+    ai_response = client.chat.completions.create(
+        model="gpt-4o-mini",
         messages=messages
     )
 
-    reply_text = response.output_text
+    reply_text = ai_response.choices[0].message["content"]
 
-    db_message_user = ChatMessage(
-        external_id=external_id,
-        role="user",
-        content=message
-    )
-    db_message_bot = ChatMessage(
-        external_id=external_id,
-        role="assistant",
-        content=reply_text
-    )
+    # 3) Kontekstni yangilash
+    new_context = f"{previous_context}\nUser: {message}\nAI: {reply_text}"
+    save_user_context(db, external_id, new_context)
 
-    db.add(db_message_user)
-    db.add(db_message_bot)
-    db.commit()
+    # 4) Tarixga yozish
+    save_ai_message(db, external_id, "assistant", reply_text)
 
     return reply_text
