@@ -1,27 +1,40 @@
-import uvicorn
-from fastapi import FastAPI, Request
-from backend.app.main import app
-# Telegram bot funksiyasi
-from telegram_bot.bot import process_update
+from sqlalchemy.orm import Session
+from app.models.chat import ChatMessage
+from app.core.ai_client import client
 
-app = FastAPI()
+def create_chat_reply(db: Session, external_id: str, message: str):
 
-# Backend routerlarini FastAPI ga ulash
-app.mount("/api", backend_app)
+    history = db.query(ChatMessage).filter(
+        ChatMessage.external_id == external_id
+    ).order_by(ChatMessage.timestamp).all()
 
-@app.get("/")
-def home():
-    return {"status": "Aziz AI backend + bot is running ✔️"}
+    messages = [{"role": "system", "content": "You are Aziz AI."}]
 
-# Telegram webhook endpoint (MUHIM!)
-@app.post("/webhook")
-async def telegram_webhook(request: Request):
-    try:
-        data = await request.json()
-        await process_update(data)  # bot.py ichidagi handler
-        return {"ok": True}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+    for msg in history:
+        messages.append({"role": msg.role, "content": msg.content})
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    messages.append({"role": "user", "content": message})
+
+    response = client.responses.create(
+        model="gpt-5.1",
+        messages=messages
+    )
+
+    reply_text = response.output_text
+
+    db_message_user = ChatMessage(
+        external_id=external_id,
+        role="user",
+        content=message
+    )
+    db_message_bot = ChatMessage(
+        external_id=external_id,
+        role="assistant",
+        content=reply_text
+    )
+
+    db.add(db_message_user)
+    db.add(db_message_bot)
+    db.commit()
+
+    return reply_text
