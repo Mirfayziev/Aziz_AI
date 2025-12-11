@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.db import get_db
+from app.db import get_user_context, save_user_message, save_ai_message
 from app.services.chat_service import create_chat_reply
 
 router = APIRouter()
