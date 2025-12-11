@@ -1,73 +1,41 @@
-# app/services/chat_service.py
-import asyncio
-import aiohttp
-from sqlalchemy.orm import Session
-from app.config import OPENAI_API_KEY
-from app.config import WEATHER_API_KEY, NEWS_API_KEY
+from openai import OpenAI
+from fastapi import HTTPException
+import os
+from app.db import get_user_context, save_user_message, save_ai_message
 
-# -----------------------------------------
-# REALTIME MA'LUMOT FUNKSIYASI (Ixtiyoriy bo‘lim)
-# -----------------------------------------
-async def get_realtime_info(message: str):
-    message_lower = message.lower()
-
-    if any(k in message_lower for k in ["ob-havo", "havo", "weather"]):
-        return "Hozirgi ob-havo bo‘yicha real ma’lumot olish xizmati ulanmagan."
-
-    if any(k in message_lower for k in ["yangilik", "news"]):
-        return "So‘nggi yangiliklarni olish funksiyasi faol emas."
-
-    return None
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-# -----------------------------------------
-# ASOSIY JAVOB GENERATSIYASI
-# -----------------------------------------
-async def _generate_reply(message: str, personality: str = "") -> str:
-    """
-    AI’dan tekst javob yaratish (async)
-    """
-    import openai
-    openai.api_key = OPENAI_API_KEY
-
-    prompt = f"""
-Sen — Aziz AI. Professional yordamchi.
-Foydalanuvchi shaxsiy profili:
-{personality}
-
-Xabar: {message}
-Javobni samimiy, aniq va qisqa qilib yoz.
-"""
-
-    completion = openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    return completion.choices[0].message["content"]
-
-
-# -----------------------------------------
-# SYNC FUNKSIYA — Router shu funksiyani chaqiradi
-# -----------------------------------------
-def create_chat_reply(db: Session, external_id: str, message: str) -> str:
-    """
-    Bu funksiya FastAPI router tomonidan chaqiriladi.
-    Ichida async kodni boshqarish uchun asyncio.run ishlatiladi.
-    """
-
-    # 1) Realtime tekshiruv
+async def create_chat_reply(db, external_id: str, message: str):
     try:
-        realtime = asyncio.run(get_realtime_info(message))
-        if realtime:
-            return realtime
-    except Exception as e:
-        print("Realtime xato:", e)
+        # 1) User kontekstini olish
+        history = get_user_context(db, external_id)
 
-    # 2) AI javob yaratish
-    try:
-        reply = asyncio.run(_generate_reply(message))
-        return reply
+        messages = [{"role": "system", "content": "You are Aziz AI assistant."}]
+
+        # oldingi tarixni qo‘shish
+        for h in history:
+            messages.append({"role": h.role, "content": h.content})
+
+        # userning yangi xabarini qo‘shish
+        messages.append({"role": "user", "content": message})
+
+        # 2) OpenAI so‘rovi
+        response = client.chat.completions.create(
+            model="gpt-5.1-mini",
+            messages=messages,
+            temperature=0.8,
+        )
+
+        # 3) YANGI FORMATDA JAVOBNI OLISh
+        reply_text = response.choices[0].message.content
+
+        # 4) Xotiraga yozish
+        save_user_message(db, external_id, message)
+        save_ai_message(db, external_id, reply_text)
+
+        return reply_text
+
     except Exception as e:
         print("AI xato:", e)
-        return "⚠️ Javob yaratishda xatolik yuz berdi."
+        raise HTTPException(500, detail="AI bilan ulanishda xatolik")
