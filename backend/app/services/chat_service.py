@@ -1,41 +1,38 @@
+# app/services/chat_service.py
+
 from openai import OpenAI
-from fastapi import HTTPException
-import os
-from app.db import get_user_context, save_user_message, save_ai_message
+from app.db import get_user_context, save_user_context, save_ai_message
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+from app.config import OPENAI_API_KEY
+
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-async def create_chat_reply(db, external_id: str, message: str):
-    try:
-        # 1) User kontekstini olish
-        history = get_user_context(db, external_id)
+# AI javob yaratish
+async def create_chat_reply(user_id: str, user_message: str) -> str:
+    # Eski kontekstni olish
+    previous_context = get_user_context(user_id)
 
-        messages = [{"role": "system", "content": "You are Aziz AI assistant."}]
+    # Modelga yuboriladigan to'plam
+    messages = []
+    if previous_context:
+        messages.append({"role": "system", "content": previous_context})
 
-        # oldingi tarixni qo‘shish
-        for h in history:
-            messages.append({"role": h.role, "content": h.content})
+    messages.append({"role": "user", "content": user_message})
 
-        # userning yangi xabarini qo‘shish
-        messages.append({"role": "user", "content": message})
+    # ChatGPT dan javob olish
+    ai_response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages
+    )
 
-        # 2) OpenAI so‘rovi
-        response = client.chat.completions.create(
-            model="gpt-5.1-mini",
-            messages=messages,
-            temperature=0.8,
-        )
+    reply_text = ai_response.choices[0].message["content"]
 
-        # 3) YANGI FORMATDA JAVOBNI OLISh
-        reply_text = response.choices[0].message.content
+    # KONTEXT YANGILANADI (eslab qolish xotira)
+    new_context = previous_context + f"\nUser: {user_message}\nAI: {reply_text}"
+    save_user_context(user_id, new_context)
 
-        # 4) Xotiraga yozish
-        save_user_message(db, external_id, message)
-        save_ai_message(db, external_id, reply_text)
+    # Chat history ga yozish
+    save_ai_message(user_id, "assistant", reply_text)
 
-        return reply_text
-
-    except Exception as e:
-        print("AI xato:", e)
-        raise HTTPException(500, detail="AI bilan ulanishda xatolik")
+    return reply_text
