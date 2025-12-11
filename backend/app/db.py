@@ -1,5 +1,6 @@
 import sqlite3
 from contextlib import closing
+from sqlalchemy.orm import Session 
 
 DB_PATH = "azizai.db"
 
@@ -71,3 +72,9 @@ def save_ai_message(user_id: str, role: str, message: str):
         """, (user_id, role, message))
         conn.commit()
 
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
