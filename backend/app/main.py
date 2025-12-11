@@ -1,3 +1,5 @@
+# app/main.py
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Request
@@ -12,6 +14,7 @@ from app.routers.realtime import router as realtime_router
 
 app = FastAPI(title="Aziz AI Backend")
 
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,18 +23,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Routers
 app.include_router(chat_router, prefix="/api/chat", tags=["Chat"])
 app.include_router(audio_router, prefix="/api/audio", tags=["Audio"])
 app.include_router(assistant_router, prefix="/api/assistant", tags=["Assistant"])
 app.include_router(planner_router, prefix="/api/planner", tags=["Planner"])
 app.include_router(profile_router, prefix="/api/profile", tags=["Profile"])
 app.include_router(tts_router, prefix="/api/tts", tags=["TTS"])
-app.include_router(realtime_router, tags=["Realtime"])
+app.include_router(realtime_router, prefix="/api/realtime", tags=["Realtime"])
+
 
 @app.get("/")
 async def root():
     return {"status": "Aziz AI backend is running ✔️"}
-   
+
+
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
     data = await request.json()
