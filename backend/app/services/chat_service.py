@@ -3,7 +3,7 @@ import asyncio
 import aiohttp
 from sqlalchemy.orm import Session
 from app.services.config import OPENAI_API_KEY
-
+from app.config import WEATHER_API_KEY, NEWS_API_KEY
 
 # -----------------------------------------
 # REALTIME MA'LUMOT FUNKSIYASI (Ixtiyoriy bo‘lim)
