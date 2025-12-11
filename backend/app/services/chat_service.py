@@ -1,26 +1,29 @@
 # app/services/chat_service.py
 
 from openai import OpenAI
+from sqlalchemy.orm import Session
 from app.db import get_user_context, save_user_context, save_ai_message
-
 from app.config import OPENAI_API_KEY
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-# AI javob yaratish
-async def create_chat_reply(user_id: str, user_message: str) -> str:
-    # Eski kontekstni olish
-    previous_context = get_user_context(user_id)
+def create_chat_reply(db: Session, user_id: str, user_message: str) -> str:
+    """
+    Foydalanuvchi xabariga AI javob yaratadi.
+    Barcha ma'lumotlar DB orqali saqlanadi.
+    """
 
-    # Modelga yuboriladigan to'plam
+    # 1) Eski kontekstni olish
+    previous_context = get_user_context(db, user_id)
+
     messages = []
     if previous_context:
         messages.append({"role": "system", "content": previous_context})
 
     messages.append({"role": "user", "content": user_message})
 
-    # ChatGPT dan javob olish
+    # 2) ChatGPT dan javob
     ai_response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages
@@ -28,11 +31,11 @@ async def create_chat_reply(user_id: str, user_message: str) -> str:
 
     reply_text = ai_response.choices[0].message["content"]
 
-    # KONTEXT YANGILANADI (eslab qolish xotira)
-    new_context = previous_context + f"\nUser: {user_message}\nAI: {reply_text}"
-    save_user_context(user_id, new_context)
+    # 3) Kontekstni yangilash
+    new_context = f"{previous_context}\nUser: {user_message}\nAI: {reply_text}"
+    save_user_context(db, user_id, new_context)
 
-    # Chat history ga yozish
-    save_ai_message(user_id, "assistant", reply_text)
+    # 4) Tarixga yozish
+    save_ai_message(db, user_id, "assistant", reply_text)
 
     return reply_text
