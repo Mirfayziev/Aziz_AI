@@ -2,6 +2,9 @@ from sqlalchemy.orm import Session
 from app.services.openai_client import client, get_model_by_tier
 from app.models import User, Message
 from app.services.memory_service import search_memories, get_or_create_user
+from app.services.behavior_analyzer import analyze_routine
+from app.models.daily_routine import DailyRoutine
+
 import httpx
 import os
 import asyncio
@@ -117,6 +120,25 @@ def create_chat_reply(
         })
 
     messages.append({"role": "user", "content": message})
+
+    def add_behavior_analysis(db, user_id: int, messages: list):
+    routine = (
+        db.query(DailyRoutine)
+        .filter(DailyRoutine.user_id == user_id)
+        .order_by(DailyRoutine.date.desc())
+        .first()
+    )
+
+    if not routine:
+        return
+
+    analysis = analyze_routine(routine)
+    analysis_text = "\n".join([f"- {item}" for item in analysis])
+
+    messages.append({
+        "role": "system",
+        "content": f"Foydalanuvchining bugungi psixologik va energiya holati tahlili:\n{analysis_text}"
+    })
 
     # ===============================
     # REALTIME QO‘SHISH
