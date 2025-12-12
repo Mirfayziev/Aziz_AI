@@ -1,64 +1,17 @@
-# app/main.py
+from fastapi import FastAPI, Depends
+from sqlalchemy.orm import Session
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi import Request
-
-from app.routers.chat import router as chat_router
-from app.routers.audio import router as audio_router
-from app.routers.assistant import router as assistant_router
-from app.routers.planner import router as planner_router
-from app.routers.profile import router as profile_router
-from app.routers.tts import router as tts_router
-from app.routers.realtime import router as realtime_router
-from app.routers.external import router as external_router
-from app.services.assistant_service import process_assistant_message
+from .db import get_db
+from .services.assistant_service import brain_query
+from .schemas import BrainQueryRequest, BrainQueryResponse
 
 app = FastAPI(title="Aziz AI Backend")
 
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Routers
-app.include_router(chat_router)
-app.include_router(audio_router, prefix="/api/audio", tags=["Audio"])
-app.include_router(assistant_router, prefix="/api/assistant", tags=["Assistant"])
-app.include_router(planner_router, prefix="/api/planner", tags=["Planner"])
-app.include_router(profile_router, prefix="/api/profile", tags=["Profile"])
-app.include_router(tts_router, prefix="/api/tts", tags=["TTS"])
-app.include_router(realtime_router, prefix="/api/realtime", tags=["Realtime"])
-app.include_router(external_router)
-
-
 @app.get("/")
-async def root():
-    return {"status": "Aziz AI backend is running ✔️"}
+def health():
+    return {"status": "ok"}
 
-
-@app.post("/webhook")
-async def telegram_webhook(request: Request):
-    data = await request.json()
-    print("TELEGRAM UPDATE:", data)
-    return {"ok": True}
-
-@app.post("/assistant-message")
-async def assistant_message(request: Request):
-    payload = await request.json()
-    text = payload.get("text")
-    user_id = payload.get("user_id", "telegram")
-
-    if not text:
-        return {"error": "text is required"}
-
-    result = await process_assistant_message(
-        user_id=user_id,
-        text=text
-    )
-
-    return result
+# 🔥 TELEGRAM SHU YERGA KELADI
+@app.post("/assistant-message", response_model=BrainQueryResponse)
+def assistant_message(req: BrainQueryRequest, db: Session = Depends(get_db)):
+    return brain_query(db, req)
