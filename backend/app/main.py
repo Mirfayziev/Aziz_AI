@@ -12,6 +12,7 @@ from app.routers.profile import router as profile_router
 from app.routers.tts import router as tts_router
 from app.routers.realtime import router as realtime_router
 from app.routers.external import router as external_router
+from app.services.assistant_service import process_assistant_message
 
 app = FastAPI(title="Aziz AI Backend")
 
@@ -45,3 +46,19 @@ async def telegram_webhook(request: Request):
     data = await request.json()
     print("TELEGRAM UPDATE:", data)
     return {"ok": True}
+
+@app.post("/assistant-message")
+async def assistant_message(request: Request):
+    payload = await request.json()
+    text = payload.get("text")
+    user_id = payload.get("user_id", "telegram")
+
+    if not text:
+        return {"error": "text is required"}
+
+    result = await process_assistant_message(
+        user_id=user_id,
+        text=text
+    )
+
+    return result
