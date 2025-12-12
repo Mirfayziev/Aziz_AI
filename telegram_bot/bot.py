@@ -4,59 +4,82 @@ import logging
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Optional
-
 import openai
 
-# ================= ENV =================
+# ================== ENV ==================
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
 
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 openai.api_key = OPENAI_API_KEY
 
-# ================= APP =================
+# ================== APP ==================
 app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("aziz_ai_bot")
 
-# ================= HELPERS =================
-def send_message(chat_id: int, text: str):
+# ================== TELEGRAM ==================
+def send_message(chat_id, text):
     requests.post(
         f"{TELEGRAM_API}/sendMessage",
         json={"chat_id": chat_id, "text": text}
     )
 
-def send_voice(chat_id: int, audio_bytes: bytes):
+def send_voice(chat_id, audio):
     requests.post(
         f"{TELEGRAM_API}/sendVoice",
         data={"chat_id": chat_id},
-        files={"voice": ("voice.ogg", audio_bytes, "audio/ogg")}
+        files={"voice": ("voice.ogg", audio, "audio/ogg")}
     )
 
-# ================= SERVICES =================
+# ================== SERVICES ==================
 def get_weather(city="Tashkent"):
     try:
-        return requests.get(f"https://wttr.in/{city}?format=3", timeout=10).text
+        r = requests.get(
+            f"https://api.openweathermap.org/data/2.5/weather",
+            params={
+                "q": city,
+                "appid": WEATHER_API_KEY,
+                "units": "metric",
+                "lang": "uz"
+            },
+            timeout=10
+        ).json()
+
+        return (
+            f"🌤 Ob-havo ({city}):\n"
+            f"Harorat: {r['main']['temp']}°C\n"
+            f"Holat: {r['weather'][0]['description']}\n"
+            f"Namlik: {r['main']['humidity']}%"
+        )
     except:
-        return "❌ Ob-havo xizmati ishlamayapti."
+        return "❌ Ob-havo ma’lumotini olishda xatolik."
 
 def get_currency():
     try:
         data = requests.get("https://cbu.uz/ru/arkhiv-kursov-valyut/json/").json()
-        usd = next(x for x in data if x["Ccy"] == "USD")["Rate"]
-        eur = next(x for x in data if x["Ccy"] == "EUR")["Rate"]
-        rub = next(x for x in data if x["Ccy"] == "RUB")["Rate"]
-        return f"💱 Valyuta:\nUSD: {usd}\nEUR: {eur}\nRUB: {rub}"
+        def rate(ccy): return next(x for x in data if x["Ccy"] == ccy)["Rate"]
+
+        return (
+            "💱 Valyuta kurslari:\n"
+            f"USD: {rate('USD')}\n"
+            f"EUR: {rate('EUR')}\n"
+            f"RUB: {rate('RUB')}"
+        )
     except:
-        return "❌ Valyuta ma’lumotlari mavjud emas."
+        return "❌ Valyuta ma’lumotlari yo‘q."
 
 def get_news():
     try:
         r = requests.get(
-            f"https://newsdata.io/api/1/news?apikey={NEWS_API_KEY}&country=uz"
+            "https://newsdata.io/api/1/news",
+            params={"apikey": NEWS_API_KEY, "country": "uz"},
+            timeout=10
         ).json()
+
         news = r.get("results", [])[:5]
         text = "📰 So‘nggi yangiliklar:\n\n"
         for n in news:
@@ -65,18 +88,18 @@ def get_news():
     except:
         return "❌ Yangiliklarni olishda xatolik."
 
-# ================= AI =================
-def ai_answer(prompt: str) -> str:
-    resp = openai.chat.completions.create(
+# ================== AI ==================
+def ai_chat(prompt):
+    r = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": "Sen Aziz AI. Javoblaring aniq, muloyim va foydali bo‘lsin."},
+            {"role": "system", "content": "Sen Aziz AI. Muloyim, aniq va ishonchli gapir."},
             {"role": "user", "content": prompt}
         ]
     )
-    return resp.choices[0].message.content
+    return r.choices[0].message.content
 
-def ai_voice(text: str) -> bytes:
+def ai_tts(text):
     audio = openai.audio.speech.create(
         model="gpt-4o-mini-tts",
         voice="alloy",
@@ -84,22 +107,22 @@ def ai_voice(text: str) -> bytes:
     )
     return audio.read()
 
-# ================= WEBHOOK =================
-class TelegramUpdate(BaseModel):
+# ================== WEBHOOK ==================
+class Update(BaseModel):
     update_id: int
     message: Optional[dict] = None
 
 @app.post("/webhook")
-async def webhook(update: TelegramUpdate):
+async def webhook(update: Update):
     if not update.message:
         return {"ok": True}
 
     chat_id = update.message["chat"]["id"]
     text = update.message.get("text", "").lower()
 
-    log.info(f"Message: {text}")
+    log.info(f"MSG: {text}")
 
-    # ---- Commands ----
+    # ===== ROUTING =====
     if text == "/start":
         send_message(chat_id,
             "👋 Assalomu alaykum!\n"
@@ -112,29 +135,16 @@ async def webhook(update: TelegramUpdate):
         )
         return {"ok": True}
 
-    if text == "ob-havo":
-        send_message(chat_id, get_weather())
-        return {"ok": True}
+    if "havo" in text:
+        msg = get_weather()
+    elif "valyuta" in text or "kurs" in text:
+        msg = get_currency()
+    elif "yangilik" in text:
+        msg = get_news()
+    else:
+        msg = ai_chat(text)
 
-    if text == "valyuta":
-        send_message(chat_id, get_currency())
-        return {"ok": True}
-
-    if text == "yangilik":
-        send_message(chat_id, get_news())
-        return {"ok": True}
-
-    if text == "audio":
-        answer = "Salom! Men Aziz AI. Ovozli javob berishga tayyorman."
-        send_voice(chat_id, ai_voice(answer))
-        return {"ok": True}
-
-    # ---- AI CHAT ----
-    answer = ai_answer(text)
-    send_message(chat_id, answer)
-
-    # optional voice
-    voice = ai_voice(answer)
-    send_voice(chat_id, voice)
+    send_message(chat_id, msg)
+    send_voice(chat_id, ai_tts(msg))
 
     return {"ok": True}
