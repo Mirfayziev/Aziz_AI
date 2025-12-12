@@ -1,7 +1,7 @@
 import os
 import logging
 import httpx
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 BACKEND_URL = os.getenv("BACKEND_URL", "").strip().rstrip("/")
@@ -9,92 +9,161 @@ SEND_VOICE_DEFAULT = os.getenv("SEND_VOICE_DEFAULT", "1").strip() == "1"
 
 if not BOT_TOKEN:
     raise RuntimeError("TELEGRAM_BOT_TOKEN is not set")
+if not BACKEND_URL:
+    raise RuntimeError("BACKEND_URL is not set (example: https://azizai-production.up.railway.app)")
 
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
+TELEGRAM_FILE_API = f"https://api.telegram.org/file/bot{BOT_TOKEN}"
 
 app = FastAPI()
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("telegram_bot")
 
-CHAT = {}
-
-def want_voice(chat_id: int) -> bool:
-    return CHAT.get(chat_id, {}).get("voice", SEND_VOICE_DEFAULT)
-
-def set_voice(chat_id: int, v: bool):
-    st = CHAT.get(chat_id, {})
-    st["voice"] = v
-    CHAT[chat_id] = st
 
 async def tg_send_message(chat_id: int, text: str):
-    async with httpx.AsyncClient(timeout=20) as client:
-        await client.post(f"{TELEGRAM_API}/sendMessage", json={"chat_id": chat_id, "text": text})
+    async with httpx.AsyncClient(timeout=30) as client:
+        await client.post(
+            f"{TELEGRAM_API}/sendMessage",
+            json={"chat_id": chat_id, "text": text},
+        )
 
-async def tg_send_voice(chat_id: int, audio_hex: str):
-    audio_bytes = bytes.fromhex(audio_hex)
-    files = {"voice": ("answer.ogg", audio_bytes, "audio/ogg")}
-    data = {"chat_id": str(chat_id)}
+
+async def tg_send_voice(chat_id: int, audio_bytes: bytes):
+    # Telegram expects OGG/OPUS bytes
     async with httpx.AsyncClient(timeout=60) as client:
-        r = await client.post(f"{TELEGRAM_API}/sendVoice", data=data, files=files)
+        await client.post(
+            f"{TELEGRAM_API}/sendVoice",
+            data={"chat_id": str(chat_id)},
+            files={"voice": ("voice.ogg", audio_bytes, "audio/ogg")},
+        )
+
+
+async def tg_download_file(file_id: str) -> bytes:
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(f"{TELEGRAM_API}/getFile", json={"file_id": file_id})
         r.raise_for_status()
+        data = r.json()
+        file_path = data["result"]["file_path"]
+
+        file_url = f"{TELEGRAM_FILE_API}/{file_path}"
+        fr = await client.get(file_url)
+        fr.raise_for_status()
+        return fr.content
+
+
+def pick_reply_text(payload: dict) -> str:
+    # backend responses can be {reply:..} or {text:..}
+    for k in ("reply", "text", "message", "answer"):
+        v = payload.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    # fallback
+    return "Xatolik yuz berdi (backend javobi bo‘sh)."
+
 
 @app.get("/")
 async def health():
     return {"ok": True, "service": "telegram_bot"}
 
+
+@app.get("/webhook")
+async def webhook_get():
+    # Browser GET should not show "Method Not Allowed"
+    return {"ok": True, "hint": "Telegram sends POST updates to this endpoint."}
+
+
 @app.post("/webhook")
-async def webhook(request: Request):
-    if not BACKEND_URL:
-        raise HTTPException(status_code=500, detail="BACKEND_URL is not set")
+async def webhook_post(req: Request):
+    try:
+        update = await req.json()
+        msg = update.get("message") or update.get("edited_message")
+        if not msg:
+            return {"ok": True}
 
-    update = await request.json()
-    msg = update.get("message") or update.get("edited_message")
-    if not msg:
+        chat_id = msg["chat"]["id"]
+
+        # ============ TEXT ============
+        if "text" in msg and msg["text"]:
+            text = (msg["text"] or "").strip()
+
+            if text.lower() in ("/start", "start"):
+                await tg_send_message(
+                    chat_id,
+                    "Assalomu alaykum! Men Aziz AI.\n\n"
+                    "Yozing yoki voice yuboring — men javob beraman.\n"
+                    "Buyruqlar: /start",
+                )
+                return {"ok": True}
+
+            async with httpx.AsyncClient(timeout=60) as client:
+                r = await client.post(
+                    f"{BACKEND_URL}/api/chat/chat",
+                    json={"external_id": str(chat_id), "message": text},
+                )
+                r.raise_for_status()
+                data = r.json()
+
+            reply_text = pick_reply_text(data)
+            await tg_send_message(chat_id, reply_text)
+
+            if SEND_VOICE_DEFAULT:
+                # get TTS audio as raw bytes
+                async with httpx.AsyncClient(timeout=120) as client:
+                    tr = await client.post(
+                        f"{BACKEND_URL}/api/tts",
+                        json={"text": reply_text},
+                    )
+                    tr.raise_for_status()
+                    audio_bytes = tr.content
+                if audio_bytes:
+                    await tg_send_voice(chat_id, audio_bytes)
+
+            return {"ok": True}
+
+        # ============ VOICE ============
+        if "voice" in msg and msg["voice"].get("file_id"):
+            file_id = msg["voice"]["file_id"]
+            voice_bytes = await tg_download_file(file_id)
+
+            # 1) STT
+            async with httpx.AsyncClient(timeout=180) as client:
+                files = {"file": ("voice.ogg", voice_bytes, "audio/ogg")}
+                ar = await client.post(f"{BACKEND_URL}/api/audio", files=files)
+                ar.raise_for_status()
+                stt = ar.json()
+
+            user_text = (stt.get("text") or "").strip()
+            if not user_text:
+                await tg_send_message(chat_id, "Ovozni matnga aylantira olmadim. Qayta yuboring.")
+                return {"ok": True}
+
+            # 2) Chat
+            async with httpx.AsyncClient(timeout=60) as client:
+                cr = await client.post(
+                    f"{BACKEND_URL}/api/chat/chat",
+                    json={"external_id": str(chat_id), "message": user_text},
+                )
+                cr.raise_for_status()
+                data = cr.json()
+
+            reply_text = pick_reply_text(data)
+            await tg_send_message(chat_id, f"🎙 Siz: {user_text}\n\n{reply_text}")
+
+            # 3) TTS
+            async with httpx.AsyncClient(timeout=120) as client:
+                tr = await client.post(f"{BACKEND_URL}/api/tts", json={"text": reply_text})
+                tr.raise_for_status()
+                audio_bytes = tr.content
+
+            if audio_bytes:
+                await tg_send_voice(chat_id, audio_bytes)
+
+            return {"ok": True}
+
+        await tg_send_message(chat_id, "Faqat matn yoki voice yuboring.")
         return {"ok": True}
 
-    chat_id = msg["chat"]["id"]
-    text = (msg.get("text") or "").strip()
-
-    if text.lower() in ["/start", "/help"]:
-        await tg_send_message(
-            chat_id,
-            "Assalomu alaykum! Men Aziz AI botiman.\n\n"
-            "Buyruqlar:\n"
-            "• /ob-havo Toshkent\n"
-            "• /yangilik sun'iy intellekt\n"
-            "• /valyuta\n"
-            "• /voice on | /voice off\n\n"
-            "Yoki oddiy savol yozing — men javob beraman."
-        )
+    except Exception as e:
+        # IMPORTANT: never return 500 to Telegram; otherwise it retries
+        log.exception("Webhook error: %s", e)
         return {"ok": True}
-
-    if text.lower().startswith("/voice"):
-        parts = text.split()
-        if len(parts) >= 2 and parts[1].lower() == "on":
-            set_voice(chat_id, True)
-            await tg_send_message(chat_id, "✅ Ovozli javob yoqildi.")
-        elif len(parts) >= 2 and parts[1].lower() == "off":
-            set_voice(chat_id, False)
-            await tg_send_message(chat_id, "✅ Ovozli javob o‘chirildi.")
-        else:
-            await tg_send_message(chat_id, f"Ovozli javob: {'ON' if want_voice(chat_id) else 'OFF'}")
-        return {"ok": True}
-
-    payload = {"external_id": str(chat_id), "message": text, "want_voice": want_voice(chat_id)}
-
-    async with httpx.AsyncClient(timeout=90) as client:
-        r = await client.post(f"{BACKEND_URL}/api/assistant/assistant-message", json=payload)
-        r.raise_for_status()
-        data = r.json()
-
-    reply_text = data.get("text") or "Xatolik yuz berdi."
-    await tg_send_message(chat_id, reply_text)
-
-    audio_hex = data.get("audio_hex")
-    if audio_hex:
-        try:
-            await tg_send_voice(chat_id, audio_hex)
-        except Exception as e:
-            log.exception("Failed to send voice: %s", e)
-
-    return {"ok": True}
