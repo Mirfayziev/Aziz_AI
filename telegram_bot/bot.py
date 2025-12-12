@@ -1,80 +1,82 @@
 import os
 import requests
-import json
 import logging
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Optional
 
-# ===== ENV VARIABLES =====
+import openai
+
+# ================= ENV =================
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-OPENAI_KEY = os.getenv("AZIZAI_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 
 TELEGRAM_API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
+openai.api_key = OPENAI_API_KEY
+
+# ================= APP =================
 app = FastAPI()
-log = logging.getLogger("bot")
-log.setLevel(logging.INFO)
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger("aziz_ai_bot")
 
-# -------------------------------
-# Telegram helper sender
-# -------------------------------
-def send_message(chat_id, text):
-    url = f"{TELEGRAM_API}/sendMessage"
-    payload = {"chat_id": chat_id, "text": text}
-    requests.post(url, json=payload)
+# ================= HELPERS =================
+def send_message(chat_id: int, text: str):
+    requests.post(
+        f"{TELEGRAM_API}/sendMessage",
+        json={"chat_id": chat_id, "text": text}
+    )
 
-def send_voice(chat_id, audio_bytes):
-    url = f"{TELEGRAM_API}/sendVoice"
-    files = {"voice": ("audio.ogg", audio_bytes, "audio/ogg")}
-    data = {"chat_id": chat_id}
-    requests.post(url, data=data, files=files)
+def send_voice(chat_id: int, audio_bytes: bytes):
+    requests.post(
+        f"{TELEGRAM_API}/sendVoice",
+        data={"chat_id": chat_id},
+        files={"voice": ("voice.ogg", audio_bytes, "audio/ogg")}
+    )
 
-# -------------------------------
-# Weather API
-# -------------------------------
+# ================= SERVICES =================
 def get_weather(city="Tashkent"):
     try:
-        r = requests.get(f"https://wttr.in/{city}?format=3")
-        return r.text
+        return requests.get(f"https://wttr.in/{city}?format=3", timeout=10).text
     except:
-        return "Ob-havo xizmatida xatolik."
+        return "❌ Ob-havo xizmati ishlamayapti."
 
-# -------------------------------
-# Currency API
-# -------------------------------
 def get_currency():
     try:
-        r = requests.get("https://cbu.uz/ru/arkhiv-kursov-valyut/json/")
-        data = r.json()
+        data = requests.get("https://cbu.uz/ru/arkhiv-kursov-valyut/json/").json()
         usd = next(x for x in data if x["Ccy"] == "USD")["Rate"]
         eur = next(x for x in data if x["Ccy"] == "EUR")["Rate"]
         rub = next(x for x in data if x["Ccy"] == "RUB")["Rate"]
-        return f"USD: {usd} UZS\nEUR: {eur} UZS\nRUB: {rub} UZS"
+        return f"💱 Valyuta:\nUSD: {usd}\nEUR: {eur}\nRUB: {rub}"
     except:
-        return "Valyuta kurslarini olishda xatolik."
+        return "❌ Valyuta ma’lumotlari mavjud emas."
 
-# -------------------------------
-# News API (Google News)
-# -------------------------------
 def get_news():
     try:
-        r = requests.get("https://newsdata.io/api/1/news?apikey=pub_54087432b0dc044bfc5&country=uz")
-        news = r.json()["results"][:5]
-        text = "SO‘NGI YANGILIKLAR:\n\n"
+        r = requests.get(
+            f"https://newsdata.io/api/1/news?apikey={NEWS_API_KEY}&country=uz"
+        ).json()
+        news = r.get("results", [])[:5]
+        text = "📰 So‘nggi yangiliklar:\n\n"
         for n in news:
-            text += f"- {n['title']}\n"
+            text += f"• {n['title']}\n"
         return text
     except:
-        return "Yangiliklarni olishda xatolik."
+        return "❌ Yangiliklarni olishda xatolik."
 
-# -------------------------------
-# Voice generation (OpenAI)
-# -------------------------------
-def generate_voice(text):
-    import openai
-    openai.api_key = OPENAI_KEY
+# ================= AI =================
+def ai_answer(prompt: str) -> str:
+    resp = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "Sen Aziz AI. Javoblaring aniq, muloyim va foydali bo‘lsin."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return resp.choices[0].message.content
 
+def ai_voice(text: str) -> bytes:
     audio = openai.audio.speech.create(
         model="gpt-4o-mini-tts",
         voice="alloy",
@@ -82,47 +84,57 @@ def generate_voice(text):
     )
     return audio.read()
 
-# ==============================================
-# TELEGRAM WEBHOOK ENDPOINT
-# ==============================================
+# ================= WEBHOOK =================
 class TelegramUpdate(BaseModel):
     update_id: int
     message: Optional[dict] = None
 
 @app.post("/webhook")
-async def telegram_webhook(update: TelegramUpdate):
-    log.info(f"Update: {update.dict()}")
-
+async def webhook(update: TelegramUpdate):
     if not update.message:
         return {"ok": True}
 
     chat_id = update.message["chat"]["id"]
-    msg = update.message.get("text", "")
+    text = update.message.get("text", "").lower()
 
-    # ----- COMMAND HANDLING -----
-    if msg == "/start":
-        send_message(chat_id, "Assalomu alaykum! Men Aziz AI botiman.")
+    log.info(f"Message: {text}")
+
+    # ---- Commands ----
+    if text == "/start":
+        send_message(chat_id,
+            "👋 Assalomu alaykum!\n"
+            "Men Aziz AI.\n\n"
+            "Buyruqlar:\n"
+            "• ob-havo\n"
+            "• valyuta\n"
+            "• yangilik\n"
+            "• audio"
+        )
         return {"ok": True}
 
-    if msg.lower() == "ob-havo":
+    if text == "ob-havo":
         send_message(chat_id, get_weather())
         return {"ok": True}
 
-    if msg.lower() == "valyuta":
+    if text == "valyuta":
         send_message(chat_id, get_currency())
         return {"ok": True}
 
-    if msg.lower() == "yangilik":
+    if text == "yangilik":
         send_message(chat_id, get_news())
         return {"ok": True}
 
-    if msg.lower() == "audio":
-        voice = generate_voice("Salom, men Aziz AI botman. Ovozli javob tayyor!")
-        send_voice(chat_id, voice)
+    if text == "audio":
+        answer = "Salom! Men Aziz AI. Ovozli javob berishga tayyorman."
+        send_voice(chat_id, ai_voice(answer))
         return {"ok": True}
 
-    # Default reply
-    reply = f"Siz yozdingiz: {msg}"
-    send_message(chat_id, reply)
+    # ---- AI CHAT ----
+    answer = ai_answer(text)
+    send_message(chat_id, answer)
+
+    # optional voice
+    voice = ai_voice(answer)
+    send_voice(chat_id, voice)
 
     return {"ok": True}
