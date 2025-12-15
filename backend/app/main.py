@@ -1,20 +1,23 @@
-from fastapi import FastAPI, Depends
-from sqlalchemy.orm import Session
-from .routers import tts
+from fastapi import FastAPI
+from pydantic import BaseModel
+from services.assistant_service import brain_query
 
-from .db import get_db
-from .services.assistant_service import brain_query
-from .schemas import BrainQueryRequest, BrainQueryResponse
+app = FastAPI()
 
-app = FastAPI(title="Aziz AI Backend")
+class AssistantRequest(BaseModel):
+    user_id: str
+    text: str
+    voice: bool = False
 
-app.include_router(tts.router)
-                   
-@app.get("/")
-def health():
-    return {"status": "ok"}
+class AssistantResponse(BaseModel):
+    text: str
+    audio_base64: str | None = None
 
-# 🔥 TELEGRAM SHU YERGA KELADI
-@app.post("/assistant-message", response_model=BrainQueryResponse)
-def assistant_message(req: BrainQueryRequest, db: Session = Depends(get_db)):
-    return brain_query(db, req)
+@app.post("/assistant-message", response_model=AssistantResponse)
+async def assistant_message(req: AssistantRequest):
+    result = await brain_query(
+        user_id=req.user_id,
+        text=req.text,
+        need_audio=req.voice
+    )
+    return result
