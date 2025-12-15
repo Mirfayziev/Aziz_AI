@@ -9,7 +9,7 @@ async def chat_with_ai(text: str) -> str:
         messages=[
             {
                 "role": "system",
-                "content": "Sen Aziz AI — insoniy, muloyim, qisqa va aniq javob berasan."
+                "content": "Sen Aziz AI — insoniy, muloyim va tabiiy ohangda javob ber."
             },
             {"role": "user", "content": text}
         ]
