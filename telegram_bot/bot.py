@@ -2,81 +2,82 @@ import os
 import uuid
 import httpx
 from fastapi import FastAPI, Request
-from services.stt_service import speech_to_text
-from services.tts_service import text_to_speech
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-BACKEND_URL = os.getenv("BACKEND_URL")
+BACKEND_URL = os.getenv("BACKEND_URL")  # masalan: https://azizai-production.up.railway.app
 
 app = FastAPI()
+
 
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
     data = await request.json()
-
     message = data.get("message", {})
     chat_id = message.get("chat", {}).get("id")
 
-    # 1️⃣ TEXT
     if "text" in message:
-        user_text = message["text"]
-        reply = await send_to_backend(user_text)
-        await send_voice_and_text(chat_id, reply)
+        await handle_text(chat_id, message["text"])
 
-    # 2️⃣ VOICE
     elif "voice" in message:
-        file_id = message["voice"]["file_id"]
-        ogg_path = await download_voice(file_id)
-        user_text = await speech_to_text(ogg_path)
-
-        reply = await send_to_backend(user_text)
-        await send_voice_and_text(chat_id, reply)
+        await handle_voice(chat_id, message["voice"]["file_id"])
 
     return {"ok": True}
 
 
-async def send_to_backend(text: str) -> str:
+async def handle_text(chat_id: int, text: str):
+    answer, voice = await ask_backend(text)
+    await send_text(chat_id, answer)
+    await send_voice(chat_id, voice)
+
+
+async def handle_voice(chat_id: int, file_id: str):
+    answer, voice = await ask_backend_voice(file_id)
+    await send_text(chat_id, answer)
+    await send_voice(chat_id, voice)
+
+
+async def ask_backend(text: str):
     async with httpx.AsyncClient() as client:
         r = await client.post(
             f"{BACKEND_URL}/assistant-message",
             json={"message": text}
         )
         r.raise_for_status()
-        return r.json()["answer"]
+        data = r.json()
+        return data["answer"], data["voice_base64"]
 
 
-async def send_voice_and_text(chat_id: int, text: str):
-    voice_path = f"/tmp/{uuid.uuid4()}.mp3"
-    await text_to_speech(text, voice_path)
+async def ask_backend_voice(file_id: str):
+    async with httpx.AsyncClient() as client:
+        r = await client.post(
+            f"{BACKEND_URL}/assistant-voice",
+            json={"file_id": file_id}
+        )
+        r.raise_for_status()
+        data = r.json()
+        return data["answer"], data["voice_base64"]
 
+
+async def send_text(chat_id: int, text: str):
     async with httpx.AsyncClient() as client:
         await client.post(
             f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
             json={"chat_id": chat_id, "text": text}
         )
 
-        with open(voice_path, "rb") as f:
+
+async def send_voice(chat_id: int, voice_base64: str):
+    import base64
+    voice_bytes = base64.b64decode(voice_base64)
+    filename = f"/tmp/{uuid.uuid4()}.mp3"
+
+    with open(filename, "wb") as f:
+        f.write(voice_bytes)
+
+    async with httpx.AsyncClient() as client:
+        with open(filename, "rb") as f:
             await client.post(
                 f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVoice",
                 data={"chat_id": chat_id},
                 files={"voice": f}
             )
-
-
-async def download_voice(file_id: str) -> str:
-    async with httpx.AsyncClient() as client:
-        file_info = await client.get(
-            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getFile",
-            params={"file_id": file_id}
-        )
-        file_path = file_info.json()["result"]["file_path"]
-
-        file_data = await client.get(
-            f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/{file_path}"
-        )
-
-    ogg_path = f"/tmp/{uuid.uuid4()}.ogg"
-    with open(ogg_path, "wb") as f:
-        f.write(file_data.content)
-
-    return ogg_path
