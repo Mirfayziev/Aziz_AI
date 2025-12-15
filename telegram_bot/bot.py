@@ -1,48 +1,56 @@
-import os, httpx
+import os
+import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-BACKEND_URL = os.getenv("BACKEND_URL")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+BACKEND_URL = os.getenv("BACKEND_URL")  # masalan: https://azizai-production.up.railway.app
 
 app = FastAPI()
 
 @app.post("/webhook")
 async def telegram_webhook(request: Request):
-    update = await request.json()
+    data = await request.json()
 
-    if "message" not in update:
-        return JSONResponse({"ok": True})
+    message = data.get("message")
+    if not message:
+        return {"ok": True}
 
-    message = update["message"]
     chat_id = message["chat"]["id"]
 
-    if "text" not in message:
-        return JSONResponse({"ok": True})
+    # TEXT
+    if "text" in message:
+        text = message["text"]
+        answer, audio_hex = await ask_backend(text)
 
-    text = message["text"]
+        await send_message(chat_id, answer)
+        await send_voice(chat_id, bytes.fromhex(audio_hex))
 
-    async with httpx.AsyncClient() as client:
+    return {"ok": True}
+
+
+async def ask_backend(text: str):
+    async with httpx.AsyncClient(timeout=60) as client:
         r = await client.post(
             f"{BACKEND_URL}/assistant-message",
-            json={"text": text},
-            timeout=30
+            json={"text": text}
         )
         r.raise_for_status()
         data = r.json()
+        return data["text"], data["audio"]
 
-    # TEXT
-    await client.post(
-        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-        json={"chat_id": chat_id, "text": data["text"]}
-    )
 
-    # AUDIO
-    audio_bytes = bytes.fromhex(data["audio"])
-    await client.post(
-        f"https://api.telegram.org/bot{BOT_TOKEN}/sendVoice",
-        files={"voice": ("answer.ogg", audio_bytes)},
-        data={"chat_id": chat_id}
-    )
+async def send_message(chat_id: int, text: str):
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            json={"chat_id": chat_id, "text": text}
+        )
 
-    return JSONResponse({"ok": True})
+
+async def send_voice(chat_id: int, audio_bytes: bytes):
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVoice",
+            data={"chat_id": chat_id},
+            files={"voice": ("answer.ogg", audio_bytes)}
+        )
