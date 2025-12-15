@@ -4,20 +4,29 @@ from app.services.assistant_service import brain_query
 
 app = FastAPI()
 
-class AssistantRequest(BaseModel):
-    user_id: str
-    text: str
-    voice: bool = False
 
-class AssistantResponse(BaseModel):
+class AssistantMessage(BaseModel):
     text: str
-    audio_base64: str | None = None
+    user_id: str | None = "telegram"
+    source: str | None = "telegram"
 
-@app.post("/assistant-message", response_model=AssistantResponse)
-async def assistant_message(req: AssistantRequest):
-    result = await brain_query(
-        user_id=req.user_id,
-        text=req.text,
-        need_audio=req.voice
+
+@app.post("/assistant-message")
+async def assistant_message(payload: AssistantMessage):
+    """
+    Telegram / Web / APK dan kelgan xabarlarni qabul qiladi
+    """
+    answer = await brain_query(
+        text=payload.text,
+        user_id=payload.user_id,
+        source=payload.source,
     )
-    return result
+
+    return {
+        "text": answer
+    }
+
+
+@app.get("/")
+def health():
+    return {"status": "ok"}
