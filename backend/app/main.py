@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from services.assistant_service import brain_query
+from app.services.assistant_service import brain_query
 
 app = FastAPI()
 
