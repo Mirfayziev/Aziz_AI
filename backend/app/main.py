@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from services.assistant_service import brain_query
+from app.services.assistant_service import brain_query
 
 app = FastAPI()
 
