@@ -61,13 +61,21 @@ async def download_telegram_file(file_id: str) -> bytes:
 # =====================================================
 
 async def backend_text_chat(text: str) -> dict:
-    async with httpx.AsyncClient(timeout=120) as client:
-        r = await client.post(
-            f"{BACKEND_URL}/assistant-message",
-            json={"text": text}
-        )
-        r.raise_for_status()
-        return r.json()
+    try:
+        async with httpx.AsyncClient(timeout=120) as client:
+            r = await client.post(
+                f"{BACKEND_URL}/assistant-message",
+                json={"text": text}
+            )
+            r.raise_for_status()
+            return r.json()
+    except Exception as e:
+        print("❌ BACKEND TEXT ERROR:", repr(e))
+        return {
+            "text": "Backend vaqtincha javob bermayapti. Bir ozdan keyin yana urinib ko‘raylik.",
+            "audio": ""
+        }
+
 
 
 async def backend_voice_chat(audio_bytes: bytes) -> dict:
