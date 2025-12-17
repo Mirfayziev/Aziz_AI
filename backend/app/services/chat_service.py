@@ -56,6 +56,22 @@ Agar savol hayot, reja, holat yoki odatlar bilan bog‘liq bo‘lsa:
 
 Hech qachon “bilmayman” deb javob bermagin.
 Agar aniq javob bo‘lmasa — mantiqli taxmin yoki variantlar ber.
+
+DIALOG QOIDALARI (MAJBURIY):
+
+- Har javobdan keyin, agar mantiqan to‘g‘ri bo‘lsa, ANIQLASHTIRUVCHI SAVOL BER.
+- Agar foydalanuvchi hayoti, holati, rejalari yoki hissiyoti haqida gapirsa:
+  → suhbatni davom ettir
+  → 1–2 qisqa savol bilan aniqlashtir
+- Hech qachon faqat monolog bilan tugatma.
+
+MISOLLAR:
+- “Bugun charchadim” → “Qachondan beri? Bugun ish yuklamasi qanday edi?”
+- “Reja qilaylik” → “Bugun uchunmi yoki haftalik? Qaysi soha ustuvor?”
+- “Nima qilay?” → “Hozirgi holatingga qarab reja tuzaymi yoki variantlar beraymi?”
+
+Agar foydalanuvchi aniq buyruq bermagan bo‘lsa:
+- kamida bitta savol bilan javobni yop.
 """
 
 # ======================================================
@@ -66,6 +82,17 @@ async def chat_with_ai(
     text: str,
     context: Optional[str] = None
 ) -> str:
+    
+    def ensure_dialog(response_text: str) -> str:
+    """
+    Agar javob savolsiz tugasa, dialogni davom ettirish uchun
+    qisqa savol qo‘shadi.
+    """
+    if "?" in response_text:
+        return response_text
+
+    follow_up = "\n\nDavom ettiramizmi yoki aniqroq qilib olaymi?"
+    return response_text + follow_up
     """
     AZIZ AI MARKAZIY MIYASI
 
@@ -98,3 +125,4 @@ async def chat_with_ai(
     )
 
     return response.choices[0].message.content.strip()
+
