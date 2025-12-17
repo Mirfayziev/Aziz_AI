@@ -8,7 +8,26 @@ NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 # ==================================================
 # OB-HAVO (REAL-TIME)
 # ==================================================
+def extract_city(query: str) -> str | None:
+    q = query.lower()
 
+    cities = [
+        "toshkent", "tashkent",
+        "samarqand", "samarkand",
+        "buxoro", "bukhara",
+        "andijon", "andijan",
+        "farg'ona", "fergana",
+        "namangan",
+        "qarshi",
+        "nukus"
+    ]
+
+    for city in cities:
+        if city in q:
+            return city.capitalize()
+
+    return None
+    
 async def get_weather(city: str = "Tashkent") -> dict:
     if not WEATHER_API_KEY:
         return {"error": "WEATHER_API_KEY yo'q"}
