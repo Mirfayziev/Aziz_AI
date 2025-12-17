@@ -79,14 +79,22 @@ async def backend_text_chat(text: str) -> dict:
 
 
 async def backend_voice_chat(audio_bytes: bytes) -> dict:
-    async with httpx.AsyncClient(timeout=180) as client:
-        files = {"file": ("voice.ogg", audio_bytes, "audio/ogg")}
-        r = await client.post(
-            f"{BACKEND_URL}/voice-chat",
-            files=files
-        )
-        r.raise_for_status()
-        return r.json()
+    try:
+        async with httpx.AsyncClient(timeout=180) as client:
+            files = {"file": ("voice.ogg", audio_bytes, "audio/ogg")}
+            r = await client.post(
+                f"{BACKEND_URL}/voice-chat",
+                files=files
+            )
+            r.raise_for_status()
+            return r.json()
+    except Exception as e:
+        print("❌ BACKEND VOICE ERROR:", repr(e))
+        return {
+            "text": "Ovozli so‘rovni qayta ishlashda muammo bo‘ldi. Qayta urinib ko‘ring.",
+            "audio": ""
+        }
+
 
 
 # =====================================================
