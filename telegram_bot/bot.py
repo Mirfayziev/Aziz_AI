@@ -10,10 +10,10 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 BACKEND_URL = os.getenv("BACKEND_URL", "").rstrip("/")
 
 if not TELEGRAM_TOKEN:
-    raise RuntimeError("TELEGRAM_BOT_TOKEN is not set")
+    print("⚠️ TELEGRAM_BOT_TOKEN is not set")
 
 if not BACKEND_URL:
-    raise RuntimeError("BACKEND_URL is not set")
+    print("⚠️ BACKEND_URL is not set")
 
 app = FastAPI()
 
