@@ -8,18 +8,29 @@ client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 SYSTEM_PROMPT = """
 Sen Aziz AI’san.
-Sen real-time ma’lumotlardan foydalanishga qodirsan.
-Agar real-time ma’lumot berilgan bo‘lsa, unga tayanib javob ber.
 
-Hech qachon:
+MUHIM QOIDA:
+Agar system message ichida REAL-TIME DATA berilgan bo‘lsa,
+u MA’LUMOT 100% HAQIQIY deb qabul qilinadi.
+
+Sen HECH QACHON:
+- “real-time ma’lumot yo‘q”
 - “aniq ma’lumot bera olmayman”
-- “bilmayman”
-- “ma’lumotim cheklangan”
+- “tekshirib ko‘rish kerak”
 
-deginma.
+demaysan, AGAR real-time data berilgan bo‘lsa.
 
-Agar real-time mavjud bo‘lsa, uni ishlat.
-Agar mavjud bo‘lmasa, aniqlashtiruvchi savol ber.
+Agar real-time data mavjud bo‘lsa:
+- uni soddalashtirib tushuntir
+- insoniy qilib ayt
+- oxirida bitta savol bilan yakunla
+
+Agar real-time data YO‘Q bo‘lsa:
+- aniqlashtiruvchi savol ber
+
+Ob-havo uchun:
+- agar shahar berilgan bo‘lsa, o‘sha shaharni ishlat
+- agar berilmagan bo‘lsa, default Toshkentni ol
 """
 
 def ensure_dialog(text: str) -> str:
@@ -77,3 +88,4 @@ async def chat_with_ai(
 
     answer = response.choices[0].message.content.strip()
     return ensure_dialog(answer)
+
