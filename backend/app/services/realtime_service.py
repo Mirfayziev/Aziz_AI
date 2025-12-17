@@ -6,7 +6,7 @@ NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 
 
 # ==================================================
-# OB-HAVO (REAL-TIME)
+# SHAHARNI AJRATISH
 # ==================================================
 def extract_city(query: str) -> str | None:
     q = query.lower()
@@ -27,7 +27,11 @@ def extract_city(query: str) -> str | None:
             return city.capitalize()
 
     return None
-    
+
+
+# ==================================================
+# OB-HAVO (REAL-TIME)
+# ==================================================
 async def get_weather(city: str = "Tashkent") -> dict:
     if not WEATHER_API_KEY:
         return {"error": "WEATHER_API_KEY yo'q"}
@@ -45,7 +49,7 @@ async def get_weather(city: str = "Tashkent") -> dict:
         data = r.json()
 
     if "main" not in data:
-        return {"error": "Ob-havo topilmadi"}
+        return {"error": f"{city} uchun ob-havo topilmadi"}
 
     return {
         "city": city,
@@ -59,7 +63,6 @@ async def get_weather(city: str = "Tashkent") -> dict:
 # ==================================================
 # YANGILIKLAR (REAL-TIME)
 # ==================================================
-
 async def get_news(limit: int = 5) -> list:
     if not NEWS_API_KEY:
         return []
@@ -91,7 +94,6 @@ async def get_news(limit: int = 5) -> list:
 # ==================================================
 # KRIPTOVALYUTA (REAL-TIME)
 # ==================================================
-
 async def get_crypto() -> dict:
     url = "https://api.coingecko.com/api/v3/simple/price"
     params = {
@@ -112,7 +114,6 @@ async def get_crypto() -> dict:
 # ==================================================
 # VALYUTA KURSLARI (REAL-TIME)
 # ==================================================
-
 async def get_currency() -> dict:
     url = "https://v6.exchangerate-api.com/v6/latest/USD"
 
@@ -133,47 +134,41 @@ async def get_currency() -> dict:
 # ==================================================
 # AI UCHUN YAGONA REAL-TIME KIRISH NUQTASI
 # ==================================================
-
 async def get_realtime_data(query: str):
-    """
-    Foydalanuvchi savoliga qarab qaysi real-time manba kerakligini aniqlaydi
-    va mos ma'lumotni qaytaradi.
-    """
     q = query.lower()
+
+    # -------- OB-HAVO (1-PRIORITET) --------
+    if any(k in q for k in [
+        "ob-havo", "ob havo", "obhavo",
+        "harorat", "yomg'ir", "yomgir",
+        "shamol", "weather", "forecast", "prognoz"
+    ]):
+        city = extract_city(query) or "Tashkent"
+        return {
+            "type": "weather",
+            "data": await get_weather(city)
+        }
 
     # -------- YANGILIKLAR --------
     if any(k in q for k in [
-        "yangilik", "yangiliklar", "xabar", "xabarlar",
-        "bugun", "bugungi", "news", "headline"
+        "yangilik", "yangiliklar",
+        "xabar", "xabarlar",
+        "news", "headline"
     ]):
         return {
             "type": "news",
             "data": await get_news()
         }
 
-    # -------- OB-HAVO --------
-    if any(k in q for k in [
-        "ob-havo", "ob havo", "bugun ob-havo", "bugungi ob-havo",
-        "harorat", "yomg'ir", "shamol", "weather", "today"
-    ]):
-        return {
-            "type": "weather",
-            "data": await get_weather()
-        }
-
     # -------- KRIPTO --------
-    if any(k in q for k in [
-        "bitcoin", "btc", "eth", "kripto", "crypto"
-    ]):
+    if any(k in q for k in ["bitcoin", "btc", "eth", "kripto", "crypto"]):
         return {
             "type": "crypto",
             "data": await get_crypto()
         }
 
     # -------- VALYUTA --------
-    if any(k in q for k in [
-        "dollar", "kurs", "valyuta", "usd", "eur", "rubl"
-    ]):
+    if any(k in q for k in ["dollar", "kurs", "valyuta", "usd", "eur", "rubl", "rub"]):
         return {
             "type": "currency",
             "data": await get_currency()
