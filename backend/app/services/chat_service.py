@@ -1,6 +1,7 @@
 import os
 from typing import Optional
 from openai import AsyncOpenAI
+from services.realtime_service import get_realtime_data
 
 # ======================================================
 # OpenAI CLIENT (FAQAT SHU YERDA)
@@ -119,3 +120,4 @@ async def chat_with_ai(text: str, context: Optional[str] = None) -> str:
 
     final_text = response.choices[0].message.content.strip()
     return ensure_dialog(final_text)
+
