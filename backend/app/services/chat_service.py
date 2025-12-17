@@ -1,6 +1,6 @@
 import os
-from openai import AsyncOpenAI
 from typing import Optional
+from openai import AsyncOpenAI
 
 # ======================================================
 # OpenAI CLIENT (FAQAT SHU YERDA)
@@ -55,7 +55,22 @@ Agar savol hayot, reja, holat yoki odatlar bilan bog‘liq bo‘lsa:
 - reja yoki variant taklif qil
 
 Hech qachon “bilmayman” deb javob bermagin.
-Agar aniq javob bo‘lmasa — mantiqli variantlar ber.
+Agar aniq javob bo‘lmasa — mantiqli taxmin yoki variantlar ber.
+
+DIALOG QOIDALARI (MAJBURIY):
+- Har javobdan keyin, agar mantiqan to‘g‘ri bo‘lsa, ANIQLASHTIRUVCHI SAVOL BER.
+- Agar foydalanuvchi hayoti, holati, rejalari yoki hissiyoti haqida gapirsa:
+  → suhbatni davom ettir
+  → 1–2 qisqa savol bilan aniqlashtir
+- Hech qachon faqat monolog bilan tugatma.
+
+MISOLLAR:
+- “Bugun charchadim” → “Qachondan beri? Bugun ish yuklamasi qanday edi?”
+- “Reja qilaylik” → “Bugun uchunmi yoki haftalik? Qaysi soha ustuvor?”
+- “Nima qilay?” → “Hozirgi holatingga qarab reja tuzaymi yoki variantlar beraymi?”
+
+Agar foydalanuvchi aniq buyruq bermagan bo‘lsa:
+- kamida bitta savol bilan javobni yop.
 """
 
 # ======================================================
@@ -69,39 +84,31 @@ def ensure_dialog(response_text: str) -> str:
     """
     if "?" in response_text:
         return response_text
-
     return response_text + "\n\nDavom ettiramizmi yoki aniqroq qilib olaymi?"
 
 # ======================================================
 # MARKAZIY CHAT FUNKSIYA (YAGONA KIRISH NUQTASI)
 # ======================================================
 
-async def chat_with_ai(
-    text: str,
-    context: Optional[str] = None
-) -> str:
+async def chat_with_ai(text: str, context: Optional[str] = None) -> str:
     """
     AZIZ AI MARKAZIY MIYASI
 
-    ❗ QOIDА:
+    QOIDА:
     - OpenAI faqat shu funksiya orqali chaqiriladi
-    - Barcha servislar (assistant, planner, memory, voice)
-      faqat shu funksiyani ishlatadi
+    - Barcha servislar (assistant, planner, memory, voice) faqat shu funksiyani ishlatadi
     """
 
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT}
-    ]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
 
+    # (Keyingi bosqichlar uchun) agar kontekst bo‘lsa
     if context:
         messages.append({
             "role": "system",
             "content": f"Kontekst (oldingi ma’lumotlar):\n{context}"
         })
 
-    messages.append(
-        {"role": "user", "content": text}
-    )
+    messages.append({"role": "user", "content": text})
 
     response = await client.chat.completions.create(
         model="gpt-4o-mini",
