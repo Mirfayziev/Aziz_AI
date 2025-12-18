@@ -9,11 +9,19 @@ from app.services.assistant_service import (
     generate_tomorrow_plan,
 )
 
-app = FastAPI(title="Aziz AI", version="1.0.0")
+app = FastAPI(
+    title="Aziz AI",
+    version="1.0.0",
+)
+
+
+@app.get("/")
+async def healthcheck():
+    return {"status": "ok"}
 
 
 # ======================================================
-# YAGONA ENDPOINT
+# YAGONA AZIZ AI ENDPOINT
 # ======================================================
 
 @app.post("/aziz-ai")
@@ -21,12 +29,13 @@ async def aziz_ai(request: Request, db: Session = Depends(get_db)):
     """
     Unified Aziz AI endpoint
 
-    Body examples:
+    Examples:
     { "type": "chat", "text": "Bugun nima qilay?" }
     { "type": "summary", "period": "daily" }
     { "type": "summary", "period": "weekly" }
     { "type": "plan", "external_id": "telegram_123" }
     """
+
     data = await request.json()
     req_type = data.get("type")
 
@@ -36,8 +45,12 @@ async def aziz_ai(request: Request, db: Session = Depends(get_db)):
         if not text:
             return {"error": "Text is empty"}
 
-        answer, _ = await brain_query(text)
-        return {"type": "chat", "text": answer}
+        answer, meta = await brain_query(text)
+        return {
+            "type": "chat",
+            "text": answer,
+            "meta": meta,
+        }
 
     # ---------------- SUMMARY ----------------
     if req_type == "summary":
@@ -60,17 +73,16 @@ async def aziz_ai(request: Request, db: Session = Depends(get_db)):
     if req_type == "plan":
         external_id = data.get("external_id")
         if not external_id:
-            return {"error": "external_id is required for plan"}
+            return {"error": "external_id is required"}
 
-        result = await generate_tomorrow_plan(
+        plan = await generate_tomorrow_plan(
             db=db,
             external_id=external_id,
         )
+
         return {
             "type": "plan",
-            "result": result,
+            "result": plan,
         }
 
     return {"error": "Invalid request type"}
-    
-   
