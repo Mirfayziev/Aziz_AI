@@ -83,3 +83,43 @@ class SummaryService:
 
 
 summary_service = SummaryService()
+
+    async def generate_weekly_summary(self) -> str:
+        """
+        Aziz AI — 7 kunlik umumiy xulosa
+        """
+        user_messages = self._collect_recent_messages(hours=24 * 7)
+        psych_trend = self._collect_psych_trend(limit=40)
+
+        if not user_messages:
+            return "So‘nggi haftada yetarli ma’lumot to‘planmadi."
+
+        content_block = (
+            "User messages from last 7 days:\n"
+            + "\n".join(f"- {m}" for m in user_messages[-20:])
+            + "\n\nPsychological trend:\n"
+            + psych_trend
+        )
+
+        response = await openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are Aziz AI doing a weekly reflection.\n"
+                        "Write a strategic, calm weekly summary with:\n"
+                        "1) Main focus areas of the week\n"
+                        "2) Psychological trends\n"
+                        "3) Risks (burnout, overload, distraction)\n"
+                        "4) Strategic advice for next week\n"
+                        "No AI mentions. Plain text only."
+                    ),
+                },
+                {"role": "user", "content": content_block},
+            ],
+            temperature=0.4,
+            max_tokens=800,
+        )
+
+        return (response.choices[0].message.content or "").strip()
