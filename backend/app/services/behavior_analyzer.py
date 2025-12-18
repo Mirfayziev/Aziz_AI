@@ -1,43 +1,24 @@
-# services/behavior_analyzer.py
-
+import json
 from typing import Dict
+
 from app.services.openai_client import openai_client
 
 
 class BehaviorAnalyzer:
-    def __init__(self):
+    def __init__(self) -> None:
         self.system_prompt = (
-            "You are a psychological analyzer. "
-            "Analyze the user's message and return ONLY JSON with these fields:\n"
-            "- mood: calm | neutral | angry | anxious | motivated | tired\n"
-            "- stress_level: low | medium | high\n"
-            "- energy_level: low | normal | high\n"
-            "- cognitive_load: low | normal | overload\n"
-            "- confidence: low | normal | high\n"
-            "Do not explain. Do not add text."
+            "Return ONLY valid minified JSON.\n"
+            "Fields:\n"
+            "mood: calm|neutral|angry|anxious|motivated|tired\n"
+            "stress_level: low|medium|high\n"
+            "energy_level: low|normal|high\n"
+            "cognitive_load: low|normal|overload\n"
+            "confidence: low|normal|high\n"
+            "No extra keys. No explanations."
         )
 
     async def analyze(self, user_message: str) -> Dict:
-        try:
-            response = await openai_client.chat(
-                messages=[
-                    {"role": "system", "content": self.system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
-                temperature=0.2,
-            )
-
-            content = response.strip()
-
-            # Xavfsiz JSON parse
-            if content.startswith("{") and content.endswith("}"):
-                return eval(content)
-
-        except Exception:
-            pass
-
-        # Fallback (har doim tizim yiqilmasligi uchun)
-        return {
+        fallback = {
             "mood": "neutral",
             "stress_level": "medium",
             "energy_level": "normal",
@@ -45,7 +26,26 @@ class BehaviorAnalyzer:
             "confidence": "normal",
         }
 
+        try:
+            resp = await openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                temperature=0.2,
+                max_tokens=120,
+            )
+            content = (resp.choices[0].message.content or "").strip()
+            data = json.loads(content)
+
+            # hard validation (xato bo‘lsa fallback)
+            for k in fallback.keys():
+                if k not in data:
+                    return fallback
+            return {k: data[k] for k in fallback.keys()}
+        except Exception:
+            return fallback
+
 
 behavior_analyzer = BehaviorAnalyzer()
-
-
