@@ -42,3 +42,4 @@ async def generate_tomorrow_plan(
         db=db,
         external_id=external_id,
     )
+
