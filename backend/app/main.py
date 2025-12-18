@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Request, Depends
 from sqlalchemy.orm import Session
-from app.bot import app as telegram_app
 
 from app.db import get_db
 from app.services.assistant_service import (
@@ -74,4 +73,4 @@ async def aziz_ai(request: Request, db: Session = Depends(get_db)):
 
     return {"error": "Invalid request type"}
     
-    app.mount("/", telegram_app)
+   
