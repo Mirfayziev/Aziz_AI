@@ -5,6 +5,7 @@ from openai import AsyncOpenAI
 from app.services.realtime_service import get_realtime_data
 from app.services.behavior_analyzer import behavior_analyzer
 from app.services.memory_service import memory_service
+from app.services.openai_client import openai_client
 
 # ======================================================
 # OPENAI CLIENT (FAQAT SHU YERDA)
@@ -166,3 +167,4 @@ async def chat_with_ai(
     )
 
     return ensure_dialog(answer)
+
