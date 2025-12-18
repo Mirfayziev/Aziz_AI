@@ -12,3 +12,9 @@ async def get_daily_summary() -> str:
     Aziz AI — kunlik summary
     """
     return await summary_service.generate_daily_summary()
+
+async def get_weekly_summary() -> str:
+    """
+    Aziz AI — haftalik summary
+    """
+    return await summary_service.generate_weekly_summary()
