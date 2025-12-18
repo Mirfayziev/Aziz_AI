@@ -1,21 +1,11 @@
 import os
 from typing import Optional, List, Dict
-from openai import AsyncOpenAI
 
 from app.services.realtime_service import get_realtime_data
+from app.services.openai_client import openai_client
 from app.services.behavior_analyzer import behavior_analyzer
 from app.services.memory_service import memory_service
-from app.services.openai_client import openai_client
 
-# ======================================================
-# OPENAI CLIENT (FAQAT SHU YERDA)
-# ======================================================
-
-client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-# ======================================================
-# AZIZ AI — MARKAZIY SYSTEM PROMPT
-# ======================================================
 
 SYSTEM_PROMPT = """
 You are Aziz AI.
@@ -35,17 +25,14 @@ Rules:
 - You evolve with Aziz over time
 
 You are Aziz AI.
-"""
+""".strip()
 
-# ======================================================
-# YORDAMCHI FUNKSIYALAR
-# ======================================================
 
 def ensure_dialog(text: str) -> str:
-    """Agar javob savolsiz tugasa, dialogni davom ettiradi."""
     if "?" in text:
         return text
     return text + "\n\nDavom ettiramizmi?"
+
 
 def format_weather(data: dict) -> str:
     return (
@@ -55,6 +42,7 @@ def format_weather(data: dict) -> str:
         "Yana qaysi shaharni tekshiray?"
     )
 
+
 def format_news(items: list) -> str:
     lines = [f"• {n['title']}" for n in items[:5]]
     return (
@@ -63,108 +51,84 @@ def format_news(items: list) -> str:
         + "\n\nQaysi birini batafsil ko‘raylik?"
     )
 
-# ======================================================
-# MARKAZIY CHAT FUNKSIYA — AZIZ AI MIYASI
-# ======================================================
 
 async def chat_with_ai(
     text: str,
-    context: Optional[str] = None
+    context: Optional[str] = None,
+    user_id: str = "aziz",
 ) -> str:
     """
-    AZIZ AI MARKAZIY MIYASI
+    YAGONA KIRISH NUQTASI (Aziz AI core)
 
-    QOIDALAR:
-    - Real-time (ob-havo, yangilik, kurs, kripto) → AI chetlab o‘tiladi
-    - AI faqat real-time bo‘lmagan savollarda ishlaydi
-    - Memory + psixologik holat har doim hisobga olinadi
+    Ketma-ketlik:
+    1) realtime (AI’siz)
+    2) psychology analyze
+    3) deep memory retrieve (vector)
+    4) short memory context + optional context
+    5) GPT
+    6) store short + emotional + extract durable facts -> vector
     """
 
-    # ==================================================
-    # 1️⃣ REAL-TIME TEKSHIRUV (AI’siz)
-    # ==================================================
+    # 1) REALTIME (AI’siz)
     realtime = await get_realtime_data(text)
-
     if realtime:
-        if realtime["type"] == "weather":
+        t = realtime.get("type")
+        if t == "weather":
             return format_weather(realtime["data"])
-
-        if realtime["type"] == "news":
+        if t == "news":
             return format_news(realtime["data"])
-
-        if realtime["type"] == "crypto":
+        if t == "crypto":
             d = realtime["data"]
             return (
-                f"Kripto narxlari:\n"
+                "Kripto narxlari:\n"
                 f"BTC: ${d.get('BTC_USD')}\n"
                 f"ETH: ${d.get('ETH_USD')}\n\n"
                 "Yana qaysi aktivni ko‘raylik?"
             )
-
-        if realtime["type"] == "currency":
+        if t == "currency":
             d = realtime["data"]
             return (
-                f"Bugungi kurslar:\n"
+                "Bugungi kurslar:\n"
                 f"USD → UZS: {d['USD_UZS']}\n"
                 f"EUR → UZS: {d['EUR_UZS']}\n"
                 f"RUB → UZS: {d['RUB_UZS']}\n\n"
                 "Yana nimani tekshiray?"
             )
 
-    # ==================================================
-    # 2️⃣ PSIXOLOGIK ANALIZ
-    # ==================================================
+    # 2) PSYCHOLOGY
     psych_state = await behavior_analyzer.analyze(text)
 
-    # ==================================================
-    # 3️⃣ MEMORY KONTEXT YIG‘ISH
-    # ==================================================
-    memory_context: List[Dict] = memory_service.build_context()
+    # 3) DEEP MEMORY RETRIEVE (vector)
+    deep_memories = await memory_service.retrieve_deep_memories(user_id=user_id, query=text, top_k=6)
 
-    # ==================================================
-    # 4️⃣ GPT UCHUN XABARLAR YIG‘ISH
-    # ==================================================
-    messages: List[Dict] = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {
-            "role": "system",
-            "content": f"Aziz current psychological state: {psych_state}"
-        }
-    ]
+    # 4) MESSAGES BUILD
+    messages: List[Dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages.append({"role": "system", "content": f"Aziz current psychological state: {psych_state}"})
+
+    if deep_memories:
+        mem_block = "\n".join(f"- {m}" for m in deep_memories)
+        messages.append({"role": "system", "content": f"Relevant long-term memories about Aziz:\n{mem_block}"})
 
     if context:
-        messages.append({
-            "role": "system",
-            "content": f"Additional context:\n{context}"
-        })
+        messages.append({"role": "system", "content": f"Additional context:\n{context}"})
 
-    messages.extend(memory_context)
+    messages.extend(memory_service.build_context())
     messages.append({"role": "user", "content": text})
 
-    # ==================================================
-    # 5️⃣ OPENAI CHAQIRUVI
-    # ==================================================
-    response = await client.chat.completions.create(
+    # 5) GPT
+    resp = await openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages,
         temperature=0.6,
-        max_tokens=900
+        max_tokens=900,
     )
+    answer = (resp.choices[0].message.content or "").strip()
 
-    answer = response.choices[0].message.content.strip()
+    # 6) STORE
+    memory_service.store_message(role="user", content=text, psych_state=psych_state)
+    memory_service.store_message(role="assistant", content=answer)
 
-    # ==================================================
-    # 6️⃣ MEMORY SAQLASH
-    # ==================================================
-    memory_service.store_message(
-        role="user",
-        content=text,
-        psych_state=psych_state
-    )
-    memory_service.store_message(
-        role="assistant",
-        content=answer
-    )
+    # 7) Extract durable facts -> vector (async, lekin bu yerda await qilamiz: xatolarsiz, deterministik)
+    await memory_service.extract_and_store_facts(user_id=user_id, user_message=text)
 
     return ensure_dialog(answer)
-
