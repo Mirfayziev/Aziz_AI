@@ -1,7 +1,7 @@
 # backend/app/models.py
 
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime
+from datetime import datetime, date
+from sqlalchemy import Column, Integer, String, Text, DateTime, Date
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -22,3 +22,17 @@ class UserContext(Base):
     user_id = Column(Integer, nullable=False)
     context = Column(Text, default="")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Plan(Base):
+    __tablename__ = "plans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False)
+
+    title = Column(String, nullable=False)
+    description = Column(Text)
+    scheduled_for = Column(String, index=True)  # YYYY-MM-DD
+    status = Column(String, default="pending")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
