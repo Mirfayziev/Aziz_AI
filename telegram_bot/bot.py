@@ -10,27 +10,37 @@ from telegram.ext import (
 )
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-BACKEND_URL = "https://azizai-production.up.railway.app/api/chat"
+
+# Backend FastAPI endpoint
+BACKEND_URL = "https://azizai-production.up.railway.app/aziz-ai"
 
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Salom Aziz 👋\nAziz AI online.")
+    await update.message.reply_text(
+        "Salom Aziz 👋\nAziz AI online.\n\nSavolingni yoz."
+    )
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
+    user_text = update.message.text
 
     try:
-        r = requests.post(
+        response = requests.post(
             BACKEND_URL,
-            json={"text": text},
+            json={
+                "type": "chat",
+                "text": user_text,
+            },
             timeout=30,
         )
-        answer = r.json().get("answer", "Xatolik")
+
+        data = response.json()
+        answer = data.get("text", "Javob yo‘q")
+
     except Exception:
-        answer = "Backend bilan aloqa yo‘q."
+        answer = "⚠️ Backend bilan aloqa yo‘q."
 
     await update.message.reply_text(answer)
 
