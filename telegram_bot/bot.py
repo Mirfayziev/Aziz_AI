@@ -11,8 +11,8 @@ from telegram.ext import (
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# MUHIM: sen ishlatayotgan endpoint
-BACKEND_URL = "https://azizai-production.up.railway.app/api/chat"
+# 🔴 TO‘G‘RI ENDPOINT
+BACKEND_URL = "https://azizai-production.up.railway.app/aziz-ai"
 
 app = ApplicationBuilder().token(BOT_TOKEN).build()
 
@@ -26,17 +26,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
+    user_text = update.message.text
 
     try:
         r = requests.post(
             BACKEND_URL,
-            json={"text": text},
+            json={
+                "type": "chat",
+                "text": user_text,
+            },
             timeout=30,
         )
         data = r.json()
-        answer = data.get("answer", "Javob yo‘q")
-    except Exception:
+
+        # 🔴 BACKEND `text` QAYTARYAPTI
+        answer = data.get("text", "Javob yo‘q")
+
+    except Exception as e:
         answer = "⚠️ Backend bilan aloqa yo‘q."
 
     await update.message.reply_text(answer)
