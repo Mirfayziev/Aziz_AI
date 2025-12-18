@@ -1,13 +1,10 @@
-from openai import OpenAI
-from ..config import get_settings
+import os
+from openai import AsyncOpenAI
 
-settings = get_settings()
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
+# ======================================================
+# YAGONA OPENAI CLIENT (BUTUN LOYIHA UCHUN)
+# ======================================================
 
-def get_model_by_tier(tier: str) -> str:
-    tier = tier.lower()
-    if tier == "fast":
-        return settings.MODEL_FAST
-    if tier == "deep":
-        return settings.MODEL_DEEP
-    return settings.MODEL_DEFAULT
+openai_client = AsyncOpenAI(
+    api_key=os.getenv("OPENAI_API_KEY")
+)
