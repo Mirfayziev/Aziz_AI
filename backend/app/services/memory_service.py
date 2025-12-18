@@ -1,50 +1,81 @@
-from sqlalchemy.orm import Session
-import numpy as np
-from openai import OpenAI
-from ..config import get_settings
-from ..models import Memory, User
+# services/memory_service.py
 
-settings = get_settings()
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
+from typing import List, Dict
+from datetime import datetime
 
-def get_or_create_user(db: Session, external_id: str) -> User:
-    user = db.query(User).filter_by(external_id=external_id).first()
-    if not user:
-        user = User(external_id=external_id)
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-    return user
+# Hozircha RAM / SQLite o‘rniga in-memory (keyin DBga oson ko‘chadi)
+SHORT_MEMORY_LIMIT = 20
 
-def embed_text(text: str) -> list[float]:
-    emb = client.embeddings.create(
-        model=settings.EMBEDDING_MODEL,
-        input=text
-    )
-    return emb.data[0].embedding
 
-def store_memory(db: Session, external_id: str, content: str, tags: list[str] | None = None):
-    user = get_or_create_user(db, external_id)
-    vec = embed_text(content)
-    m = Memory(user_id=user.id, content=content, tags=tags, embedding=vec)
-    db.add(m)
-    db.commit()
-    db.refresh(m)
-    return m
+class MemoryService:
+    def __init__(self):
+        self.short_memory: List[Dict] = []
+        self.long_memory: List[str] = []
+        self.emotional_memory: List[Dict] = []
 
-def search_memories(db: Session, external_id: str, query: str, top_k: int = 3) -> list[Memory]:
-    user = get_or_create_user(db, external_id)
-    q_emb = np.array(embed_text(query))
-    memories = db.query(Memory).filter_by(user_id=user.id).all()
-    if not memories:
-        return []
-    scored = []
-    for m in memories:
-        if not m.embedding:
-            continue
-        v = np.array(m.embedding)
-        denom = (np.linalg.norm(q_emb) * np.linalg.norm(v)) or 1.0
-        score = float(q_emb.dot(v) / denom)
-        scored.append((score, m))
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [m for _, m in scored[:top_k]]
+    def store_message(
+        self,
+        role: str,
+        content: str,
+        psych_state: Dict | None = None,
+    ):
+        self.short_memory.append(
+            {
+                "role": role,
+                "content": content,
+                "time": datetime.utcnow().isoformat(),
+            }
+        )
+
+        if psych_state:
+            self.emotional_memory.append(
+                {
+                    "psych_state": psych_state,
+                    "time": datetime.utcnow().isoformat(),
+                }
+            )
+
+        if len(self.short_memory) > SHORT_MEMORY_LIMIT:
+            self.short_memory.pop(0)
+
+    def remember_fact(self, fact: str):
+        if fact not in self.long_memory:
+            self.long_memory.append(fact)
+
+    def build_context(self) -> List[Dict]:
+        context: List[Dict] = []
+
+        # Long-term memory
+        if self.long_memory:
+            context.append(
+                {
+                    "role": "system",
+                    "content": "Known facts about the user:\n"
+                    + "\n".join(f"- {f}" for f in self.long_memory),
+                }
+            )
+
+        # Emotional trend (oxirgi 5 ta)
+        if self.emotional_memory:
+            recent = self.emotional_memory[-5:]
+            summary = ", ".join(
+                f"{e['psych_state'].get('mood')}/{e['psych_state'].get('stress_level')}"
+                for e in recent
+            )
+            context.append(
+                {
+                    "role": "system",
+                    "content": f"Recent emotional trend: {summary}",
+                }
+            )
+
+        # Short-term chat
+        context.extend(
+            {"role": m["role"], "content": m["content"]}
+            for m in self.short_memory
+        )
+
+        return context
+
+
+memory_service = MemoryService()
