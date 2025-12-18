@@ -8,6 +8,7 @@ from app.services.assistant_service import (
     get_weekly_summary,
     generate_tomorrow_plan,
 )
+from app.services.memory_service import memory_service
 
 app = FastAPI(
     title="Aziz AI",
@@ -39,20 +40,47 @@ async def aziz_ai(request: Request, db: Session = Depends(get_db)):
     data = await request.json()
     req_type = data.get("type")
 
-    # ---------------- CHAT ----------------
+    # ==================================================
+    # CHAT
+    # ==================================================
     if req_type == "chat":
         text = (data.get("text") or "").strip()
         if not text:
             return {"error": "Text is empty"}
 
+        # 1️⃣ USER MESSAGE → SHORT MEMORY
+        memory_service.store_message(
+            role="user",
+            content=text,
+        )
+
+        # 2️⃣ AI JAVOB
         answer, meta = await brain_query(text)
+
+        # 3️⃣ AI MESSAGE → SHORT MEMORY
+        memory_service.store_message(
+            role="assistant",
+            content=answer,
+        )
+
+        # 4️⃣ SOFT (DEEP) MEMORY — AVTOMATIK AJRATISH
+        try:
+            await memory_service.extract_and_store_facts(
+                user_id="aziz",          # single-user mode (hozircha)
+                user_message=text,
+            )
+        except Exception:
+            pass  # memory hech qachon chatni buzmasin
+
         return {
             "type": "chat",
             "text": answer,
             "meta": meta,
         }
 
-    # ---------------- SUMMARY ----------------
+    # ==================================================
+    # SUMMARY
+    # ==================================================
     if req_type == "summary":
         period = data.get("period", "daily")
 
@@ -69,7 +97,9 @@ async def aziz_ai(request: Request, db: Session = Depends(get_db)):
             "text": await get_daily_summary(),
         }
 
-    # ---------------- PLAN ----------------
+    # ==================================================
+    # PLAN
+    # ==================================================
     if req_type == "plan":
         external_id = data.get("external_id")
         if not external_id:
