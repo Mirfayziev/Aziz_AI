@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, Depends
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.db import get_db
 from app.services.assistant_service import (
     brain_query,
     get_daily_summary,
