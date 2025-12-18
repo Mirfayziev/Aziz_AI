@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 
 from app.db import get_or_create_user
 from app.models import Plan
-from app.services.summary_service import summary_service
 from app.services.openai_client import openai_client
 
 
@@ -46,13 +45,14 @@ async def generate_and_save_tomorrow_plan(
     """
     Daily summary -> AI plan -> plans table
     """
-    # 1️⃣ Ertangi sana
+
+    # ✅ LAZY IMPORT — CIRCULAR YO‘Q
+    from app.services.summary_service import summary_service
+
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
 
-    # 2️⃣ Daily summary
     daily_summary = await summary_service.generate_daily_summary()
 
-    # 3️⃣ AI dan plan olish
     response = await openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -80,17 +80,14 @@ async def generate_and_save_tomorrow_plan(
             ],
         }
 
-    # 4️⃣ User
     user = get_or_create_user(db, external_id)
 
-    # 5️⃣ Oldingi ertangi planlarni o‘chirish
     db.query(Plan).filter(
         Plan.user_id == user.id,
         Plan.scheduled_for == tomorrow,
     ).delete()
     db.commit()
 
-    # 6️⃣ Yangi planlarni DB ga yozish
     for task in plan_json.get("tasks", [])[:7]:
         plan = Plan(
             user_id=user.id,
