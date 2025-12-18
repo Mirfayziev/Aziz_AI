@@ -8,6 +8,7 @@ from app.services.assistant_service import (
     get_weekly_summary,
 )
 from app.services.stt_service import speech_to_text, STTServiceError
+from app.services.assistant_service import get_tomorrow_plan
 
 app = FastAPI(title="Aziz AI", version="1.0.0")
 
@@ -15,6 +16,10 @@ app = FastAPI(title="Aziz AI", version="1.0.0")
 # ======================================================
 # SUMMARY ENDPOINTS
 # ======================================================
+
+@app.get("/plan/tomorrow")
+async def tomorrow_plan():
+    return await get_tomorrow_plan()
 
 @app.get("/summary")
 async def daily_summary():
