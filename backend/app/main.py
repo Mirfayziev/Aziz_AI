@@ -4,9 +4,16 @@ import tempfile
 
 from app.services.assistant_service import brain_query
 from app.services.stt_service import speech_to_text, STTServiceError
+from app.services.assistant_service import get_daily_summary
 
 app = FastAPI()
 
+@app.get("/summary")
+async def daily_summary():
+    return {
+        "summary": await get_daily_summary()
+    }
+    
 @app.post("/assistant-message")
 async def assistant_message(request: Request):
     data = await request.json()
