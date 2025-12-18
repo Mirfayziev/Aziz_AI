@@ -1,7 +1,7 @@
 # services/behavior_analyzer.py
 
 from typing import Dict
-from services.openai_client import openai_client
+from app.services.openai_client import openai_client
 
 
 class BehaviorAnalyzer:
@@ -47,3 +47,4 @@ class BehaviorAnalyzer:
 
 
 behavior_analyzer = BehaviorAnalyzer()
+
