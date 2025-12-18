@@ -1,135 +1,74 @@
-from fastapi import FastAPI, Request, UploadFile, File
-import os
-import tempfile
+from fastapi import FastAPI, Request, Depends
+from sqlalchemy.orm import Session
 
+from app.database import get_db
 from app.services.assistant_service import (
     brain_query,
     get_daily_summary,
     get_weekly_summary,
+    generate_tomorrow_plan,
 )
-from app.services.stt_service import speech_to_text, STTServiceError
-from app.services.assistant_service import get_tomorrow_plan
 
 app = FastAPI(title="Aziz AI", version="1.0.0")
 
 
 # ======================================================
-# SUMMARY ENDPOINTS
+# YAGONA ENDPOINT
 # ======================================================
 
-@app.get("/plan/tomorrow")
-async def tomorrow_plan():
-    return await get_tomorrow_plan()
-
-@app.get("/summary")
-async def daily_summary():
+@app.post("/aziz-ai")
+async def aziz_ai(request: Request, db: Session = Depends(get_db)):
     """
-    Aziz AI — kunlik summary
-    """
-    return {
-        "summary": await get_daily_summary()
-    }
+    Unified Aziz AI endpoint
 
-
-@app.get("/summary/weekly")
-async def weekly_summary():
-    """
-    Aziz AI — haftalik summary
-    """
-    return {
-        "summary": await get_weekly_summary()
-    }
-
-
-# ======================================================
-# TEXT CHAT (TELEGRAM / WEB)
-# ======================================================
-
-@app.post("/assistant-message")
-async def assistant_message(request: Request):
-    """
-    Text -> Aziz AI -> Text (+ audio placeholder)
+    Body examples:
+    { "type": "chat", "text": "Bugun nima qilay?" }
+    { "type": "summary", "period": "daily" }
+    { "type": "summary", "period": "weekly" }
+    { "type": "plan", "external_id": "telegram_123" }
     """
     data = await request.json()
-    text = (data.get("text") or "").strip()
+    req_type = data.get("type")
 
-    if not text:
-        return {"error": "Text is empty"}
+    # ---------------- CHAT ----------------
+    if req_type == "chat":
+        text = (data.get("text") or "").strip()
+        if not text:
+            return {"error": "Text is empty"}
 
-    answer, audio_bytes = await brain_query(text)
+        answer, _ = await brain_query(text)
+        return {"type": "chat", "text": answer}
 
-    return {
-        "text": answer,
-        # audio hozircha hex ko‘rinishda (TTS keyin to‘liq ishlatiladi)
-        "audio": audio_bytes.hex() if audio_bytes else None
-    }
+    # ---------------- SUMMARY ----------------
+    if req_type == "summary":
+        period = data.get("period", "daily")
 
-
-# ======================================================
-# STT — SPEECH TO TEXT
-# ======================================================
-
-@app.post("/stt")
-async def stt_endpoint(file: UploadFile = File(...)):
-    """
-    Audio (ogg/mp3/wav) -> text
-    Telegram voice bilan mos
-    """
-    suffix = os.path.splitext(file.filename or "")[1] or ".ogg"
-    tmp_path = None
-
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp_path = tmp.name
-            tmp.write(await file.read())
-
-        text = speech_to_text(tmp_path)
-        return {"text": text}
-
-    except STTServiceError as e:
-        return {"error": str(e)}
-
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            try:
-                os.remove(tmp_path)
-            except Exception:
-                pass
-
-
-# ======================================================
-# VOICE CHAT (STT -> AI -> TTS)
-# (hozircha ishlaydi, lekin ovoz strategik yoqilgan emas)
-# ======================================================
-
-@app.post("/voice-chat")
-async def voice_chat(file: UploadFile = File(...)):
-    """
-    Audio -> text (STT) -> Aziz AI -> text (+ audio)
-    """
-    suffix = os.path.splitext(file.filename or "")[1] or ".ogg"
-    tmp_path = None
-
-    try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-            tmp_path = tmp.name
-            tmp.write(await file.read())
-
-        text = speech_to_text(tmp_path)
-        answer, audio_bytes = await brain_query(text)
+        if period == "weekly":
+            return {
+                "type": "summary",
+                "period": "weekly",
+                "text": await get_weekly_summary(),
+            }
 
         return {
-            "input_text": text,
-            "text": answer,
-            "audio": audio_bytes.hex() if audio_bytes else None
+            "type": "summary",
+            "period": "daily",
+            "text": await get_daily_summary(),
         }
 
-    except STTServiceError as e:
-        return {"error": str(e)}
+    # ---------------- PLAN ----------------
+    if req_type == "plan":
+        external_id = data.get("external_id")
+        if not external_id:
+            return {"error": "external_id is required for plan"}
 
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            try:
-                os.remove(tmp_path)
-            except Exception:
-                pass
+        result = await generate_tomorrow_plan(
+            db=db,
+            external_id=external_id,
+        )
+        return {
+            "type": "plan",
+            "result": result,
+        }
+
+    return {"error": "Invalid request type"}
