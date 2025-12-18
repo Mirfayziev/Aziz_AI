@@ -5,9 +5,16 @@ import tempfile
 from app.services.assistant_service import brain_query
 from app.services.stt_service import speech_to_text, STTServiceError
 from app.services.assistant_service import get_daily_summary
+from app.services.assistant_service import get_weekly_summary
 
 app = FastAPI()
 
+@app.get("/summary/weekly")
+async def weekly_summary():
+    return {
+        "summary": await get_weekly_summary()
+    }
+    
 @app.get("/summary")
 async def daily_summary():
     return {
