@@ -1,14 +1,12 @@
 # backend/app/db.py
 
 import os
-from datetime import datetime
 from typing import Generator
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base, Session
+from sqlalchemy.orm import sessionmaker, Session
 
-# MUHIM: User modeli faqat models.py da bo‘ladi
-from app.models import User, UserContext
+from app.models import Base, User
 
 # ======================================================
 # DATABASE CONFIG
@@ -32,8 +30,6 @@ SessionLocal = sessionmaker(
     bind=engine,
 )
 
-Base = declarative_base()
-
 # ======================================================
 # SESSION DEPENDENCY
 # ======================================================
@@ -46,7 +42,7 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 # ======================================================
-# USER HELPERS (BARCHA SERVICELAR UCHUN)
+# USER HELPER
 # ======================================================
 
 def get_or_create_user(db: Session, external_id: str) -> User:
@@ -61,9 +57,7 @@ def get_or_create_user(db: Session, external_id: str) -> User:
     return user
 
 # ======================================================
-# INIT TABLES
+# INIT TABLES (BIR MARTA)
 # ======================================================
 
-# MUHIM: create_all faqat bitta joyda bo‘lishi kerak
-from app.models import Base as ModelsBase
-ModelsBase.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)
