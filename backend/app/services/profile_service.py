@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from ..models import User
+from app.db import get_or_create_user
 
 def update_profile(
     db: Session,
@@ -25,3 +26,4 @@ def update_profile(
     db.commit()
     db.refresh(user)
     return user
+
