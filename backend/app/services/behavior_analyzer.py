@@ -1,27 +1,49 @@
-def analyze_routine(routine):
-    recommendations = []
+# services/behavior_analyzer.py
 
-    if routine.wake_time and routine.wake_time.hour >= 9:
-        recommendations.append(
-            "Uyg‘onish vaqti kech. Ertalabki intellektual samaradorlik pasaymoqda."
+from typing import Dict
+from services.openai_client import openai_client
+
+
+class BehaviorAnalyzer:
+    def __init__(self):
+        self.system_prompt = (
+            "You are a psychological analyzer. "
+            "Analyze the user's message and return ONLY JSON with these fields:\n"
+            "- mood: calm | neutral | angry | anxious | motivated | tired\n"
+            "- stress_level: low | medium | high\n"
+            "- energy_level: low | normal | high\n"
+            "- cognitive_load: low | normal | overload\n"
+            "- confidence: low | normal | high\n"
+            "Do not explain. Do not add text."
         )
 
-    if routine.night_work_end and routine.night_work_end.hour >= 1:
-        recommendations.append(
-            "Kechasi 01:00 dan keyin ishlash — stressni oshiradi va keyingi kun energiyani pasaytiradi."
-        )
+    async def analyze(self, user_message: str) -> Dict:
+        try:
+            response = await openai_client.chat(
+                messages=[
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                temperature=0.2,
+            )
 
-    if routine.energy_level == "low":
-        recommendations.append(
-            "Bugun energiya past. Murakkab ishlarni ertaga ko‘chirish tavsiya etiladi."
-        )
+            content = response.strip()
 
-    if routine.sleep_quality == "low":
-        recommendations.append(
-            "Uyqu sifati past. Bugun og‘ir qarorlar qabul qilmaslik tavsiya etiladi."
-        )
+            # Xavfsiz JSON parse
+            if content.startswith("{") and content.endswith("}"):
+                return eval(content)
 
-    if not recommendations:
-        recommendations.append("Kun tartibingiz optimal holatda.")
+        except Exception:
+            pass
 
-    return recommendations
+        # Fallback (har doim tizim yiqilmasligi uchun)
+        return {
+            "mood": "neutral",
+            "stress_level": "medium",
+            "energy_level": "normal",
+            "cognitive_load": "normal",
+            "confidence": "normal",
+        }
+
+
+behavior_analyzer = BehaviorAnalyzer()
