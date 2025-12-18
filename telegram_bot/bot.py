@@ -1,105 +1,103 @@
 import os
-import httpx
-import traceback
+from typing import Dict
+
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from telegram import Update
+from telegram.ext import (
+    Application,
+    ApplicationBuilder,
+    ContextTypes,
+    MessageHandler,
+    CommandHandler,
+    filters,
+)
 
-# =====================================================
+from app.services.assistant_service import (
+    brain_query,
+    get_daily_summary,
+    get_weekly_summary,
+    generate_tomorrow_plan,
+)
+from app.db import get_db
+
+# ======================================================
 # CONFIG
-# =====================================================
+# ======================================================
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-BACKEND_URL = os.getenv("BACKEND_URL", "").rstrip("/")
-
-if not BOT_TOKEN:
-    print("⚠️ TELEGRAM_BOT_TOKEN not set")
-
-if not BACKEND_URL:
-    print("⚠️ BACKEND_URL not set (AI ulanmaydi, lekin bot ishlaydi)")
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_PATH = "/aziz-ai"
 
 app = FastAPI()
 
-
-# =====================================================
-# TELEGRAM API HELPERS
-# =====================================================
-
-async def telegram_api(method: str, payload=None, files=None):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/{method}"
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(url, json=payload, files=files)
-        print(f"➡️ Telegram {method} → {r.status_code}")
-        print(r.text)
-        return r
+tg_app: Application = ApplicationBuilder().token(BOT_TOKEN).build()
 
 
-async def send_message(chat_id: int, text: str):
-    return await telegram_api("sendMessage", {
-        "chat_id": chat_id,
-        "text": text
-    })
+# ======================================================
+# TELEGRAM HANDLERS
+# ======================================================
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Salom Aziz 👋\n"
+        "Men Aziz AI.\n\n"
+        "/summary — kunlik xulosa\n"
+        "/week — haftalik xulosa\n"
+        "/plan — ertangi reja\n"
+        "Oddiy yozsangiz — javob beraman."
+    )
 
 
-# =====================================================
-# BACKEND (AI) CALL
-# =====================================================
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    answer, _ = await brain_query(text)
+    await update.message.reply_text(answer)
 
-async def ask_backend_ai(text: str) -> str:
-    if not BACKEND_URL:
-        return "AI backend ulanmagan, lekin bot ishlayapti."
 
+async def daily_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    summary = await get_daily_summary()
+    await update.message.reply_text(summary)
+
+
+async def weekly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    summary = await get_weekly_summary()
+    await update.message.reply_text(summary)
+
+
+async def tomorrow_plan(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    external_id = str(update.effective_user.id)
+
+    # DB session
+    db = next(get_db())
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(
-                f"{BACKEND_URL}/assistant-message",
-                json={"text": text}
-            )
-            r.raise_for_status()
-            data = r.json()
-            return data.get("text", "AI javob bermadi")
-    except Exception as e:
-        print("❌ BACKEND ERROR:", repr(e))
-        return "AI vaqtincha javob bermayapti."
+        result = await generate_tomorrow_plan(db, external_id)
+    finally:
+        db.close()
+
+    await update.message.reply_text(
+        f"📅 {result['date']}\n"
+        f"🎯 Fokus: {', '.join(result['focus'])}\n"
+        f"📝 Tasks yaratildi: {result['tasks_created']}"
+    )
 
 
-# =====================================================
-# TELEGRAM WEBHOOK
-# =====================================================
+# ======================================================
+# REGISTER HANDLERS
+# ======================================================
 
-@app.post("/webhook")
+tg_app.add_handler(CommandHandler("start", start))
+tg_app.add_handler(CommandHandler("summary", daily_summary))
+tg_app.add_handler(CommandHandler("week", weekly_summary))
+tg_app.add_handler(CommandHandler("plan", tomorrow_plan))
+tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+
+
+# ======================================================
+# WEBHOOK ENDPOINT
+# ======================================================
+
+@app.post(WEBHOOK_PATH)
 async def telegram_webhook(request: Request):
-    try:
-        update = await request.json()
-        print("📩 UPDATE:", update)
-
-        message = (
-            update.get("message")
-            or update.get("edited_message")
-        )
-
-        if not message:
-            return JSONResponse({"ok": True})
-
-        chat_id = message["chat"]["id"]
-
-        # -------- TEXT MESSAGE --------
-        if "text" in message:
-            user_text = message["text"]
-            await send_message(chat_id, "⏳ O‘ylayapman...")
-
-            ai_answer = await ask_backend_ai(user_text)
-            await send_message(chat_id, ai_answer)
-
-        # -------- VOICE MESSAGE (hozircha stub) --------
-        elif "voice" in message:
-            await send_message(
-                chat_id,
-                "🎤 Ovoz qabul qilindi. STT keyingi bosqichda ulanadi."
-            )
-
-        return JSONResponse({"ok": True})
-
-    except Exception:
-        print("❌ WEBHOOK CRASH")
-        print(traceback.format_exc())
-        return JSONResponse({"ok": True})
+    data: Dict = await request.json()
+    update = Update.de_json(data, tg_app.bot)
+    await tg_app.process_update(update)
+    return {"ok": True}
