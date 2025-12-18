@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import List
 
 from app.services.openai_client import openai_client
 from app.services.memory_service import memory_service
@@ -26,9 +26,8 @@ Return plain text only.
 
 class SummaryService:
     def _collect_recent_messages(self, hours: int = 24) -> List[str]:
-        """Oxirgi N soatdagi user xabarlarini yig‘adi"""
         cutoff = datetime.utcnow() - timedelta(hours=hours)
-        messages = []
+        messages: List[str] = []
 
         for m in memory_service.short_memory:
             try:
@@ -81,13 +80,7 @@ class SummaryService:
 
         return (response.choices[0].message.content or "").strip()
 
-
-summary_service = SummaryService()
-
     async def generate_weekly_summary(self) -> str:
-        """
-        Aziz AI — 7 kunlik umumiy xulosa
-        """
         user_messages = self._collect_recent_messages(hours=24 * 7)
         psych_trend = self._collect_psych_trend(limit=40)
 
@@ -123,3 +116,6 @@ summary_service = SummaryService()
         )
 
         return (response.choices[0].message.content or "").strip()
+
+
+summary_service = SummaryService()
