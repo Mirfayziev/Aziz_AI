@@ -17,7 +17,7 @@ async def brain_query(text: str) -> Tuple[str, bytes]:
 
 
 # ======================================================
-# SUMMARY (LAZY IMPORT)
+# SUMMARY (LAZY IMPORT — CIRCULAR YO‘Q)
 # ======================================================
 
 async def get_daily_summary() -> str:
@@ -31,7 +31,7 @@ async def get_weekly_summary() -> str:
 
 
 # ======================================================
-# PLAN (LAZY IMPORT)
+# PLAN (VARIANT A — DIRECT CALL)
 # ======================================================
 
 async def generate_tomorrow_plan(
@@ -42,4 +42,3 @@ async def generate_tomorrow_plan(
         db=db,
         external_id=external_id,
     )
-
