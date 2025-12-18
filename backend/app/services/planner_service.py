@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from datetime import datetime, date
 from ..models import Plan
-from .memory_service import get_or_create_user
+from app.db import get_or_create_user
 
 def create_plan(db: Session, external_id: str, title: str, description: str | None, scheduled_for: str | None):
     user = get_or_create_user(db, external_id)
@@ -26,3 +26,4 @@ def get_today_plans(db: Session, external_id: str):
         .filter(Plan.scheduled_for == today_str)
         .all()
     )
+
