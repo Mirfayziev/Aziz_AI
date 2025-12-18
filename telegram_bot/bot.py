@@ -2,19 +2,17 @@ import os
 import requests
 from telegram import Update
 from telegram.ext import (
-    ApplicationBuilder,
-    ContextTypes,
-    MessageHandler,
+    Application,
     CommandHandler,
+    MessageHandler,
+    ContextTypes,
     filters,
 )
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# 🔴 TO‘G‘RI ENDPOINT
+# 🔴 BACKEND API (SEN ISHLATAYOTGAN)
 BACKEND_URL = "https://azizai-production.up.railway.app/aziz-ai"
-
-app = ApplicationBuilder().token(BOT_TOKEN).build()
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -31,26 +29,31 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         r = requests.post(
             BACKEND_URL,
-            json={
-                "type": "chat",
-                "text": user_text,
-            },
+            json={"text": user_text},
             timeout=30,
         )
         data = r.json()
-
-        # 🔴 BACKEND `text` QAYTARYAPTI
         answer = data.get("text", "Javob yo‘q")
 
-    except Exception as e:
+    except Exception:
         answer = "⚠️ Backend bilan aloqa yo‘q."
 
     await update.message.reply_text(answer)
 
 
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+def main():
+    app = Application.builder().token(BOT_TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+
+    # ❗ WEBHOOK
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.getenv("PORT", 8000)),
+        webhook_url=os.getenv("WEBHOOK_URL"),
+    )
 
 
 if __name__ == "__main__":
-    app.run_polling()
+    main()
