@@ -1,5 +1,4 @@
-import os
-from typing import Optional, List, Dict
+from typing import Optional, List
 
 from app.services.realtime_service import get_realtime_data
 from app.services.openai_client import openai_client
@@ -7,25 +6,8 @@ from app.services.behavior_analyzer import behavior_analyzer
 from app.services.memory_service import memory_service
 
 
-SYSTEM_PROMPT = """
-You are Aziz AI.
-
-You are a personal AI created by Aziz, for Aziz.
-You are not a generic assistant.
-
-Rules:
-- Never mention model names, versions, or training dates
-- Never say “I don’t have access to real-time data”
-- If information is missing, say you will fetch it
-- Speak naturally, calmly, confidently
-- Analyze Aziz’s mood and intent
-- Adapt your tone to Aziz’s psychological state
-- Be proactive, not robotic
-- Short, human-like answers
-- You evolve with Aziz over time
-
-You are Aziz AI.
-""".strip()
+# ✅ AZIZ AI CORE PROMPT ID
+AZIZ_CORE_PROMPT_ID = "pmpt_69450c3550c881959870cfc5353c0d730e213568481dfbc7"
 
 
 def ensure_dialog(text: str) -> str:
@@ -58,18 +40,18 @@ async def chat_with_ai(
     user_id: str = "aziz",
 ) -> str:
     """
-    YAGONA KIRISH NUQTASI (Aziz AI core)
+    AZIZ AI — YAGONA KIRISH NUQTASI
 
     Ketma-ketlik:
     1) realtime (AI’siz)
     2) psychology analyze
-    3) deep memory retrieve (vector)
-    4) short memory context + optional context
-    5) GPT
-    6) store short + emotional + extract durable facts -> vector
+    3) long-term memory retrieve
+    4) prompt input build
+    5) OpenAI (Prompt ID)
+    6) memory store
     """
 
-    # 1) REALTIME (AI’siz)
+    # 1️⃣ REALTIME (AI’siz)
     realtime = await get_realtime_data(text)
     if realtime:
         t = realtime.get("type")
@@ -95,40 +77,60 @@ async def chat_with_ai(
                 "Yana nimani tekshiray?"
             )
 
-    # 2) PSYCHOLOGY
+    # 2️⃣ PSYCHOLOGICAL ANALYSIS
     psych_state = await behavior_analyzer.analyze(text)
 
-    # 3) DEEP MEMORY RETRIEVE (vector)
-    deep_memories = await memory_service.retrieve_deep_memories(user_id=user_id, query=text, top_k=6)
-
-    # 4) MESSAGES BUILD
-    messages: List[Dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
-    messages.append({"role": "system", "content": f"Aziz current psychological state: {psych_state}"})
-
-    if deep_memories:
-        mem_block = "\n".join(f"- {m}" for m in deep_memories)
-        messages.append({"role": "system", "content": f"Relevant long-term memories about Aziz:\n{mem_block}"})
-
-    if context:
-        messages.append({"role": "system", "content": f"Additional context:\n{context}"})
-
-    messages.extend(memory_service.build_context())
-    messages.append({"role": "user", "content": text})
-
-    # 5) GPT
-    resp = await openai_client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=messages,
-        temperature=0.6,
-        max_tokens=900,
+    # 3️⃣ LONG-TERM MEMORY
+    deep_memories: List[str] = await memory_service.retrieve_deep_memories(
+        user_id=user_id,
+        query=text,
+        top_k=6,
     )
-    answer = (resp.choices[0].message.content or "").strip()
 
-    # 6) STORE
-    memory_service.store_message(role="user", content=text, psych_state=psych_state)
-    memory_service.store_message(role="assistant", content=answer)
+    memory_block = ""
+    if deep_memories:
+        memory_block = "Relevant memories:\n" + "\n".join(f"- {m}" for m in deep_memories)
 
-    # 7) Extract durable facts -> vector (async, lekin bu yerda await qilamiz: xatolarsiz, deterministik)
-    await memory_service.extract_and_store_facts(user_id=user_id, user_message=text)
+    # 4️⃣ FINAL INPUT (PROMPT + CONTEXT)
+    final_input = f"""
+User message:
+{text}
+
+Psychological state:
+{psych_state}
+
+{memory_block}
+
+{context or ""}
+""".strip()
+
+    # 5️⃣ OPENAI — PROMPT ID ORQALI
+    response = await openai_client.responses.create(
+        model="gpt-4.1",
+        prompt={
+            "id": AZIZ_CORE_PROMPT_ID,
+            "version": "1",
+        },
+        input=final_input,
+        max_output_tokens=900,
+    )
+
+    answer = (response.output_text or "").strip()
+
+    # 6️⃣ MEMORY STORE
+    memory_service.store_message(
+        role="user",
+        content=text,
+        psych_state=psych_state,
+    )
+    memory_service.store_message(
+        role="assistant",
+        content=answer,
+    )
+
+    await memory_service.extract_and_store_facts(
+        user_id=user_id,
+        user_message=text,
+    )
 
     return ensure_dialog(answer)
