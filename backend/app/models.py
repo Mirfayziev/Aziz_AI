@@ -36,3 +36,13 @@ class Plan(Base):
     status = Column(String, default="pending")
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class HealthRecord(Base):
+    __tablename__ = "health_records"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_external_id = Column(String, index=True)
+    metric_type = Column(String)
+    value = Column(Float)
+    unit = Column(String)
+    recorded_at = Column(DateTime)
