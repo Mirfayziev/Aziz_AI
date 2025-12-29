@@ -1,7 +1,7 @@
 # backend/app/models.py
 
 from datetime import datetime, date
-from sqlalchemy import Column, Integer, String, Text, DateTime, Date
+from sqlalchemy import Column, Integer, String, Text, DateTime, Date, Float
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -46,3 +46,4 @@ class HealthRecord(Base):
     value = Column(Float)
     unit = Column(String)
     recorded_at = Column(DateTime)
+
