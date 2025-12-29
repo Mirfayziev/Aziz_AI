@@ -1,10 +1,10 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from backend.app.db import get_db
-from backend.app import models
-from backend.app.schemas import ChatRequest, ChatResponse
-from backend.app.health_models import HealthRecordCreate, HealthRecordOut
+from app.db import get_db
+from app import models
+from app.schemas import ChatRequest, ChatResponse
+from app.health_models import HealthRecordCreate, HealthRecordOut
 
 models.Base.metadata.create_all(bind=models.engine)
 
