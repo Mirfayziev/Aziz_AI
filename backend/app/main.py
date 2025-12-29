@@ -8,7 +8,7 @@ from app import models
 from app.schemas import ChatRequest, ChatResponse
 from app.health_models import HealthRecordCreate, HealthRecordOut
 
-Base.metadata.create_all(bind=engine))
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Aziz AI",
