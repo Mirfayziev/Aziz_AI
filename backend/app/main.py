@@ -1,13 +1,12 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends
 from sqlalchemy.orm import Session
 
-from app.models import Base
-from app.db import engine
-from app.db import get_db
-from app import models
+from app.db import engine, get_db
+from app.models import Base, HealthRecord
 from app.schemas import ChatRequest, ChatResponse
 from app.health_models import HealthRecordCreate, HealthRecordOut
 
+# DB jadvallarini yaratish
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -15,16 +14,20 @@ app = FastAPI(
     version="1.0.0"
 )
 
+
 # ----------------------
-# Healthcheck
+# HEALTHCHECK
 # ----------------------
 @app.get("/")
 async def healthcheck():
-    return {"status": "ok", "service": "Aziz AI"}
+    return {
+        "status": "ok",
+        "service": "Aziz AI"
+    }
 
 
 # ----------------------
-# CHAT (existing)
+# CHAT
 # ----------------------
 @app.post("/aziz-ai", response_model=ChatResponse)
 async def chat(req: ChatRequest):
@@ -36,13 +39,13 @@ async def chat(req: ChatRequest):
 # HEALTH API
 # ----------------------
 
-# ➤ Yangi yozuv qo‘shish (Apple Health dan keladigan data)
+# ➤ Yangi yozuv qo‘shish
 @app.post("/health", response_model=HealthRecordOut)
 def create_health_record(
     payload: HealthRecordCreate,
     db: Session = Depends(get_db)
 ):
-    record = models.HealthRecord(
+    record = HealthRecord(
         user_external_id=payload.user_external_id,
         metric_type=payload.metric_type,
         value=payload.value,
@@ -53,6 +56,7 @@ def create_health_record(
     db.add(record)
     db.commit()
     db.refresh(record)
+
     return record
 
 
@@ -60,9 +64,9 @@ def create_health_record(
 @app.get("/health/{user_external_id}", response_model=list[HealthRecordOut])
 def list_health_records(user_external_id: str, db: Session = Depends(get_db)):
     records = (
-        db.query(models.HealthRecord)
-        .filter(models.HealthRecord.user_external_id == user_external_id)
-        .order_by(models.HealthRecord.recorded_at.desc())
+        db.query(HealthRecord)
+        .filter(HealthRecord.user_external_id == user_external_id)
+        .order_by(HealthRecord.recorded_at.desc())
         .all()
     )
     return records
