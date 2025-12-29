@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -10,9 +11,6 @@ from app.services.assistant_service import (
 )
 from app.services.memory_service import memory_service
 
-# ⬇️ YANGI: Health data model
-from app.models import HealthMetric
-
 
 app = FastAPI(
     title="Aziz AI",
@@ -20,77 +18,60 @@ app = FastAPI(
 )
 
 
+# -----------------------------------------------------
+# CORS — Telegram bot, Web va Mobile uchun kerak
+# -----------------------------------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# -----------------------------------------------------
+# HEALTHCHECK
+# -----------------------------------------------------
 @app.get("/")
 async def healthcheck():
-    return {"status": "ok"}
+    return {"status": "ok", "service": "Aziz AI backend"}
 
 
-# ======================================================
-# 1️⃣  HEALTH DATA IMPORT (Apple / Auto Export)
-# ======================================================
-@app.post("/health/import")
-async def import_health(request: Request, db: Session = Depends(get_db)):
-    """
-    Health Auto Export → Aziz AI ga ma'lumot yuborish.
-
-    Example payload (oddiy misol):
-    {
-        "metric": "heart_rate",
-        "value": 78,
-        "unit": "bpm",
-        "recorded_at": "2025-12-29T10:00:00Z",
-        "raw": {...}
-    }
-    """
-
-    data = await request.json()
-
-    metric = data.get("metric")
-    value = data.get("value")
-
-    if not metric or value is None:
-        return {"error": "metric va value majburiy"}
-
-    record = HealthMetric(
-        metric=metric,
-        value=float(value),
-        unit=data.get("unit"),
-        recorded_at=data.get("recorded_at"),
-        raw=data,
-        user_id="aziz",
-    )
-
-    db.add(record)
-    db.commit()
-
-    return {"status": "saved"}
-
-
-# ======================================================
-# 2️⃣  YAGONA AZIZ AI ENDPOINT
-# ======================================================
-
+# =====================================================
+# YAGONA AZIZ AI ENDPOINT
+# =====================================================
 @app.post("/aziz-ai")
 async def aziz_ai(request: Request, db: Session = Depends(get_db)):
     """
     Unified Aziz AI endpoint
+
+    Examples:
+    { "type": "chat", "text": "Bugun nima qilay?" }
+    { "type": "summary", "period": "daily" }
+    { "type": "summary", "period": "weekly" }
+    { "type": "plan", "external_id": "telegram_123" }
     """
 
     data = await request.json()
     req_type = data.get("type")
 
-    # ================= CHAT =================
+    # ---------------------- CHAT ----------------------
     if req_type == "chat":
         text = (data.get("text") or "").strip()
         if not text:
             return {"error": "Text is empty"}
 
+        # 1️⃣ foydalanuvchi xabari — qisqa xotira
         memory_service.store_message(role="user", content=text)
 
+        # 2️⃣ AI javobi
         answer, meta = await brain_query(text)
 
+        # 3️⃣ AI xabari — qisqa xotira
         memory_service.store_message(role="assistant", content=answer)
 
+        # 4️⃣ soft-memory (faktlarni ajratib saqlash)
         try:
             await memory_service.extract_and_store_facts(
                 user_id="aziz",
@@ -101,7 +82,7 @@ async def aziz_ai(request: Request, db: Session = Depends(get_db)):
 
         return {"type": "chat", "text": answer, "meta": meta}
 
-    # ================= SUMMARY =================
+    # -------------------- SUMMARY ---------------------
     if req_type == "summary":
         period = data.get("period", "daily")
 
@@ -118,14 +99,18 @@ async def aziz_ai(request: Request, db: Session = Depends(get_db)):
             "text": await get_daily_summary(),
         }
 
-    # ================= PLAN =================
+    # ---------------------- PLAN ----------------------
     if req_type == "plan":
         external_id = data.get("external_id")
         if not external_id:
             return {"error": "external_id is required"}
 
-        plan = await generate_tomorrow_plan(db=db, external_id=external_id)
+        plan = await generate_tomorrow_plan(
+            db=db,
+            external_id=external_id,
+        )
 
         return {"type": "plan", "result": plan}
 
+    # ------------------ DEFAULT -----------------------
     return {"error": "Invalid request type"}
