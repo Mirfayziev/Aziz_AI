@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.db import engine
 from app.db import get_db
 from app import models
 from app.schemas import ChatRequest, ChatResponse
