@@ -1,14 +1,15 @@
-from sqlalchemy import Column, String, JSON, DateTime
+from pydantic import BaseModel
 from datetime import datetime
 
-from .db import Base   # MUHIM: sizda Base shu fayldan keladi
+class HealthRecordCreate(BaseModel):
+    user_external_id: str
+    metric_type: str
+    value: float
+    unit: str
+    recorded_at: datetime
 
+class HealthRecordOut(HealthRecordCreate):
+    id: int
 
-class HealthRecord(Base):
-    __tablename__ = "health_records"
-
-    id = Column(String, primary_key=True)
-    user_id = Column(String, nullable=True)
-    source = Column(String, nullable=True)
-    data = Column(JSON, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    class Config:
+        from_attributes = True
