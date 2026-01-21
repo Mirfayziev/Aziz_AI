@@ -4,10 +4,16 @@ from app.services.realtime_service import get_realtime_data
 from app.services.openai_client import openai_client
 from app.services.behavior_analyzer import behavior_analyzer
 from app.services.memory_service import memory_service
+from openai import OpenAI
 
+client = OpenAI()
 
-# ✅ AZIZ AI CORE PROMPT ID
-AZIZ_CORE_PROMPT_ID = "pmpt_69450c3550c881959870cfc5353c0d730e213568481dfbc7"
+response = client.responses.create(
+  prompt={
+    "id": "pmpt_69450c3550c881959870cfc5353c0d730e213568481dfbc7",
+    "version": "2"
+  }
+)
 
 
 def ensure_dialog(text: str) -> str:
@@ -134,3 +140,4 @@ Psychological state:
     )
 
     return ensure_dialog(answer)
+
