@@ -4,15 +4,18 @@ from app.services.realtime_service import get_realtime_data
 from app.services.openai_client import openai_client
 from app.services.behavior_analyzer import behavior_analyzer
 from app.services.memory_service import memory_service
-from openai import OpenAI
 
-client = OpenAI()
 
-response = client.responses.create(
-  prompt={
-    "id": "pmpt_69450c3550c881959870cfc5353c0d730e213568481dfbc7",
-    "version": "2"
-  }
+AZIZ_CORE_PROMPT_ID = "pmpt_69450c3550c881959870cfc5353c0d730e213568481dfbc7"
+
+response = await openai_client.responses.create(
+    model="gpt-5.2-pro",
+    prompt={
+        "id": AZIZ_CORE_PROMPT_ID,
+        "version": "1",
+    },
+    input=final_input,
+    max_output_tokens=900,
 )
 
 
@@ -140,4 +143,5 @@ Psychological state:
     )
 
     return ensure_dialog(answer)
+
 
