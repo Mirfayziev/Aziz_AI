@@ -24,7 +24,7 @@ BACKEND_URL = os.getenv("BACKEND_URL", "https://azizai-production.up.railway.app
 
 # Sizning Telegram ID (admin) — DRAFT faqat sizga keladi
 # Example: ADMIN_TELEGRAM_ID=123456789
-ADMIN_TELEGRAM_ID = os.getenv("320977751")
+ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID")
 
 # Tasdiqlashni kutish vaqti (sekund)
 # Masalan 300 = 5 daqiqa
