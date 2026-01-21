@@ -8,15 +8,32 @@ from app.services.memory_service import memory_service
 
 AZIZ_CORE_PROMPT_ID = "pmpt_69450c3550c881959870cfc5353c0d730e213568481dfbc7"
 
-response = await openai_client.responses.create(
-    model="gpt-5.2-pro",
-    prompt={
-        "id": AZIZ_CORE_PROMPT_ID,
-        "version": "1",
-    },
-    input=final_input,
-    max_output_tokens=900,
-)
+
+async def chat_with_ai(user_text: str) -> str:
+    """
+    Asosiy AI chat funksiyasi.
+    Faqat shu yerda await ishlatiladi.
+    """
+
+    response = await openai_client.responses.create(
+        model="gpt-5.2-pro",
+        prompt={
+            "id": AZIZ_CORE_PROMPT_ID,
+            "version": "1",
+        },
+        input=user_text,
+        max_output_tokens=900,
+    )
+
+    # OpenAI Responses API natijani shunday qaytaradi
+    if hasattr(response, "output_text"):
+        return response.output_text
+
+    # fallback
+    try:
+        return response.output[0].content[0].text
+    except Exception:
+        return "Javob olinmadi."
 
 
 def ensure_dialog(text: str) -> str:
@@ -143,5 +160,6 @@ Psychological state:
     )
 
     return ensure_dialog(answer)
+
 
 
