@@ -5,6 +5,7 @@ from app.db import engine, get_db
 from app.models import Base, HealthRecord
 from app.schemas import ChatRequest, ChatResponse
 from app.health_models import HealthRecordCreate, HealthRecordOut
+from app.services.chat_service import chat_with_ai
 
 # DB jadvallarini yaratish
 Base.metadata.create_all(bind=engine)
@@ -31,8 +32,14 @@ async def healthcheck():
 # ----------------------
 @app.post("/aziz-ai", response_model=ChatResponse)
 async def chat(req: ChatRequest):
-    reply = f"Sening savoling: {req.message}"
-    return ChatResponse(reply=reply)
+    try:
+        answer = await chat_with_ai(
+            text=req.message,
+            user_id=req.user_external_id,
+        )
+        return ChatResponse(reply=answer)
+    except Exception as e:
+        return ChatResponse(reply=f"⚠️ AI xato: {e}")
 
 
 # ----------------------
