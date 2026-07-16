@@ -4,7 +4,7 @@ import os
 import httpx
 from fastapi import APIRouter, UploadFile, File
 
-router = APIRouter(tags=["audio"])
+router = APIRouter(prefix="/api/audio", tags=["audio"])
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
 TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe").strip()

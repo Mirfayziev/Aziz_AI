@@ -6,6 +6,7 @@ from app.models import Base, HealthRecord
 from app.schemas import ChatRequest, ChatResponse
 from app.health_models import HealthRecordCreate, HealthRecordOut
 from app.services.chat_service import chat_with_ai
+from app.routers import chat, profile, planner, audio, external, realtime, tts, assistant
 
 # DB jadvallarini yaratish
 Base.metadata.create_all(bind=engine)
@@ -14,6 +15,15 @@ app = FastAPI(
     title="Aziz AI",
     version="1.0.0"
 )
+
+app.include_router(chat.router)
+app.include_router(profile.router)
+app.include_router(planner.router)
+app.include_router(audio.router)
+app.include_router(external.router)
+app.include_router(realtime.router)
+app.include_router(tts.router)
+app.include_router(assistant.router)
 
 
 # ----------------------

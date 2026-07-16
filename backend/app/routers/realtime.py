@@ -1,12 +1,12 @@
 from fastapi import APIRouter
-from services.realtime_service import (
+from app.services.realtime_service import (
     get_weather,
     get_news,
     get_crypto,
     get_currency
 )
 
-router = APIRouter(prefix="/api/realtime")
+router = APIRouter(prefix="/api/realtime", tags=["Realtime"])
 
 @router.get("/weather")
 async def weather(city: str = "Tashkent"):

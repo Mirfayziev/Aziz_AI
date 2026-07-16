@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from typing import Optional, List
@@ -8,8 +9,11 @@ from app.services.realtime_service import get_realtime_data
 from app.services.openai_client import openai_client
 from app.services.memory_service import memory_service
 
-# ✅ AZIZ AI CORE PROMPT ID
-AZIZ_CORE_PROMPT_ID = "pmpt_69450c3550c881959870cfc5353c0d730e213568481dfbc7"
+AZIZ_SYSTEM_PROMPT = (
+    "You are Aziz AI, a helpful personal assistant for Aziz. "
+    "Reply in the same language the user wrote in. Be concise and helpful."
+)
+CHAT_MODEL = os.getenv("AZIZAI_CHAT_MODEL", "gpt-4o-mini")
 
 
 def format_weather(data: dict) -> str:
@@ -105,40 +109,28 @@ async def chat_with_ai(
     # 2️⃣ MEMORY (psychologiyasiz)
     memory_block = await _retrieve_memory_block(user_id=user_id, query=user_text, top_k=6)
 
-    # 3️⃣ FINAL INPUT (REAL TIME + USER + MEMORY + CONTEXT)
-    parts = [
-        _tashkent_now_block(),
-        "USER MESSAGE:",
-        user_text,
-    ]
+    # 3️⃣ SYSTEM CONTEXT (REAL TIME + MEMORY + CONTEXT)
+    system_parts = [AZIZ_SYSTEM_PROMPT, "", _tashkent_now_block()]
 
     if memory_block:
-        parts += ["", memory_block]
+        system_parts += ["", memory_block]
 
     if context:
-        parts += ["", "ADDITIONAL CONTEXT:", context.strip()]
+        system_parts += ["", "ADDITIONAL CONTEXT:", context.strip()]
 
-    final_input = "\n".join(parts).strip()
+    system_prompt = "\n".join(system_parts).strip()
 
-    # 4️⃣ OPENAI — PROMPT ID ORQALI (MODEL 5.x)
-    response = await openai_client.responses.create(
-        model="gpt-5.2-pro",
-        prompt={
-            "id": AZIZ_CORE_PROMPT_ID,
-            "version": "1",
-        },
-        input=final_input,
-        max_output_tokens=900,
+    # 4️⃣ OPENAI — CHAT COMPLETIONS
+    response = await openai_client.chat.completions.create(
+        model=CHAT_MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_text},
+        ],
+        max_tokens=900,
     )
 
-    answer = (getattr(response, "output_text", "") or "").strip()
-
-    # fallback (ba'zi klientlarda output_text bo'lmasligi mumkin)
-    if not answer:
-        try:
-            answer = (response.output[0].content[0].text or "").strip()
-        except Exception:
-            answer = ""
+    answer = (response.choices[0].message.content or "").strip()
 
     if not answer:
         answer = "Javob olinmadi."

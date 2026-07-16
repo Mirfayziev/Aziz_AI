@@ -28,11 +28,11 @@
 - Optional: `SEND_VOICE_DEFAULT` = `1` or `0`
 
 ## 3) Set Telegram Webhook
-Webhook URL:
-`https://<telegram-bot-domain>/webhook`
+Webhook URL (must match the `url_path` used in `telegram_bot/bot.py`):
+`https://<telegram-bot-domain>/telegram/webhook`
 
 Example:
-`https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://observant-fascination-production-6461.up.railway.app/webhook`
+`https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://observant-fascination-production-6461.up.railway.app/telegram/webhook`
 
 ## 4) Test
 - Backend: `/docs`

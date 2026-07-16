@@ -1,7 +1,7 @@
 # backend/app/models.py
 
 from datetime import datetime, date
-from sqlalchemy import Column, Integer, String, Text, DateTime, Date, Float
+from sqlalchemy import Column, Integer, String, Text, DateTime, Date, Float, JSON
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -12,6 +12,10 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     external_id = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=True)
+    bio = Column(Text, nullable=True)
+    goals = Column(JSON, nullable=True)
+    interests = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

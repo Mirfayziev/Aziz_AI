@@ -1,7 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from ..db import get_db
-from ..schemas import (
+import base64
+import re
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+from app.schemas import (
     SocialReplyRequest,
     SocialReplyResponse,
     OfficeDocPlanRequest,
@@ -9,61 +13,65 @@ from ..schemas import (
     BrainQueryRequest,
     BrainQueryResponse,
 )
-from ..services.assistant_service import (
+from app.services.assistant_service import (
     generate_social_reply,
     plan_office_doc,
     brain_query,
 )
+from app.services.chat_service import chat_with_ai
+from app.services.external_data_service import get_weather, get_news, get_currency
+from app.services.tts_service import text_to_speech_bytes
 
-router = APIRouter(tags=["assistant"])
+router = APIRouter(prefix="/api/assistant", tags=["assistant"])
+
 
 @router.post("/social-reply", response_model=SocialReplyResponse)
-def social_reply(req: SocialReplyRequest, db: Session = Depends(get_db)):
+async def social_reply(req: SocialReplyRequest):
     try:
-        return generate_social_reply(db, req)
+        return await generate_social_reply(req)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/office-plan", response_model=OfficeDocPlanResponse)
-def office_plan(req: OfficeDocPlanRequest, db: Session = Depends(get_db)):
+async def office_plan(req: OfficeDocPlanRequest):
     try:
-        return plan_office_doc(db, req)
+        return await plan_office_doc(req)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.post("/brain-query", response_model=BrainQueryResponse)
-def brain_query_endpoint(req: BrainQueryRequest, db: Session = Depends(get_db)):
+async def brain_query_endpoint(req: BrainQueryRequest):
     try:
-        return brain_query(db, req)
+        answer, _ = await brain_query(req.question)
+        return BrainQueryResponse(answer=answer)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-from pydantic import BaseModel
-from typing import Optional
-import re
-from app.services.external_data_service import get_weather, get_news, get_currency
-from app.services.chat_service import create_chat_reply
-from app.routers.tts import text_to_speech
-
 class AssistantMessageRequest(BaseModel):
-    external_id: str
+    user_external_id: str
     message: str
     want_voice: bool = True
     city: Optional[str] = None
     news_query: Optional[str] = None
 
+
 def _looks_weather(t: str) -> bool:
     t = t.lower()
     return any(k in t for k in ["ob-havo", "obhavo", "havo", "harorat", "weather"])
+
 
 def _looks_news(t: str) -> bool:
     t = t.lower()
     return any(k in t for k in ["yangilik", "news", "so'nggi yangilik", "so‘nggi yangilik"])
 
+
 def _looks_currency(t: str) -> bool:
     t = t.lower()
     return any(k in t for k in ["valyuta", "kurs", "dollar", "usd", "eur", "rub", "курс"])
+
 
 def _extract_city(text: str) -> Optional[str]:
     m = re.search(r"/ob-?havo\s+(.+)$", text, flags=re.IGNORECASE)
@@ -74,8 +82,9 @@ def _extract_city(text: str) -> Optional[str]:
         return m2.group(1).strip()
     return None
 
+
 @router.post("/assistant-message")
-async def assistant_message(req: AssistantMessageRequest, db: Session = Depends(get_db)):
+async def assistant_message(req: AssistantMessageRequest):
     msg = (req.message or "").strip()
     tool = "chat"
 
@@ -116,26 +125,26 @@ async def assistant_message(req: AssistantMessageRequest, db: Session = Depends(
             if data.get("provider") == "cbu":
                 rates = data.get("rates_in_uzs", {})
                 lines = ["💱 Valyuta (CBU):"]
-                for k,v in rates.items():
+                for k, v in rates.items():
                     lines.append(f"1 {k} = {v} UZS")
                 text = "\n".join(lines)
             else:
                 rates = data.get("rates", {})
                 lines = [f"💱 Valyuta (base: {data.get('base','USD')}):"]
-                for k,v in rates.items():
+                for k, v in rates.items():
                     lines.append(f"1 {data.get('base','USD')} = {v} {k}")
                 text = "\n".join(lines)
         else:
             text = f"❌ Valyuta: {data.get('error','xatolik')}"
     else:
-        text = create_chat_reply(db, req.external_id, msg)
+        text = await chat_with_ai(text=msg, user_id=req.user_external_id)
 
-    audio_hex = None
+    audio_base64 = None
     if req.want_voice:
         try:
-            audio = await text_to_speech({"text": text})
-            audio_hex = audio.get("audio_base64")  # hex bytes of ogg
+            audio_bytes = await text_to_speech_bytes(text)
+            audio_base64 = base64.b64encode(audio_bytes).decode("ascii")
         except Exception:
-            audio_hex = None
+            audio_base64 = None
 
-    return {"ok": True, "tool": tool, "text": text, "audio_hex": audio_hex}
+    return {"ok": True, "tool": tool, "text": text, "audio_base64": audio_base64}

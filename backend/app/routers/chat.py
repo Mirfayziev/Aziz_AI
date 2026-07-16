@@ -1,17 +1,12 @@
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from fastapi import APIRouter
 
-from app.db import get_db
-from app.services.chat_service import create_chat_reply
+from app.schemas import ChatRequest, ChatResponse
+from app.services.chat_service import chat_with_ai
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
 
-class ChatRequest(BaseModel):
-    external_id: str
-    message: str
 
-@router.post("/chat")
-def chat_endpoint(req: ChatRequest, db: Session = Depends(get_db)):
-    reply = create_chat_reply(db, req.external_id, req.message)
-    return {"reply": reply}
+@router.post("/", response_model=ChatResponse)
+async def chat_endpoint(req: ChatRequest):
+    answer = await chat_with_ai(text=req.message, user_id=req.user_external_id)
+    return ChatResponse(reply=answer)

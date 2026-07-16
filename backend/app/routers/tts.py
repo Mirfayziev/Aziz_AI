@@ -4,7 +4,7 @@ from openai import OpenAI
 import io, os
 
 router = APIRouter()
-client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
 
 @router.post("/api/tts")
 def tts(data: dict):

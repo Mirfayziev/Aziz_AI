@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
-from ..models import User
 from app.db import get_or_create_user
+from app.models import User
+
 
 def update_profile(
     db: Session,
@@ -10,7 +11,6 @@ def update_profile(
     goals: list[str] | None = None,
     interests: list[str] | None = None,
 ) -> User:
-    from .memory_service import get_or_create_user
     user = get_or_create_user(db, external_id)
 
     if name is not None:
@@ -26,4 +26,3 @@ def update_profile(
     db.commit()
     db.refresh(user)
     return user
-
